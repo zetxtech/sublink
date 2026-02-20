@@ -39,6 +39,12 @@ export const formLogicFn = (t) => {
             customShortCode: '',
             parsingUrl: false,
             parseDebounceTimer: null,
+
+            conversionHistory: [],
+            historyMaxItems: 50,
+
+            rawConfigLoading: false,
+            rawConfigText: '',
             // These will be populated from window.APP_TRANSLATIONS
             processingText: '',
             convertText: '',
@@ -72,6 +78,27 @@ export const formLogicFn = (t) => {
                 this.configEditor = localStorage.getItem('configEditor') || '';
                 this.configType = localStorage.getItem('configType') || 'singbox';
                 this.customShortCode = localStorage.getItem('customShortCode') || '';
+
+                const savedPredefinedRule = localStorage.getItem('selectedPredefinedRule');
+                if (savedPredefinedRule) {
+                    this.selectedPredefinedRule = savedPredefinedRule;
+                }
+
+                const savedSelectedRules = localStorage.getItem('selectedRules');
+                if (savedSelectedRules) {
+                    try {
+                        const parsed = JSON.parse(savedSelectedRules);
+                        if (Array.isArray(parsed)) {
+                            this.selectedRules = parsed;
+                            if (!savedPredefinedRule) {
+                                this.selectedPredefinedRule = 'custom';
+                            }
+                        }
+                    } catch {
+                        // ignore
+                    }
+                }
+
                 const initialUrlParams = new URLSearchParams(window.location.search);
                 this.currentConfigId = initialUrlParams.get('configId') || '';
 
@@ -86,7 +113,14 @@ export const formLogicFn = (t) => {
                 }
 
                 // Initialize rules
-                this.applyPredefinedRule();
+                if (this.selectedPredefinedRule && this.selectedPredefinedRule !== 'custom') {
+                    this.applyPredefinedRule();
+                } else if (!Array.isArray(this.selectedRules) || this.selectedRules.length === 0) {
+                    this.selectedPredefinedRule = 'balanced';
+                    this.applyPredefinedRule();
+                }
+
+                this.loadHistory();
 
                 // Watchers to save state
                 this.$watch('input', val => {
@@ -94,6 +128,8 @@ export const formLogicFn = (t) => {
                     this.handleInputChange(val);
                 });
                 this.$watch('showAdvanced', val => localStorage.setItem('advancedToggle', val));
+                this.$watch('selectedPredefinedRule', val => localStorage.setItem('selectedPredefinedRule', val));
+                this.$watch('selectedRules', val => localStorage.setItem('selectedRules', JSON.stringify(val || [])), { deep: true });
                 this.$watch('groupByCountry', val => localStorage.setItem('groupByCountry', val));
                 this.$watch('includeAutoSelect', val => localStorage.setItem('includeAutoSelect', val));
                 this.$watch('enableClashUI', val => localStorage.setItem('enableClashUI', val));
@@ -110,6 +146,104 @@ export const formLogicFn = (t) => {
                 });
                 this.$watch('customShortCode', val => localStorage.setItem('customShortCode', val));
                 this.$watch('accordionSections', val => localStorage.setItem('accordionSections', JSON.stringify(val)), { deep: true });
+            },
+
+            loadHistory() {
+                try {
+                    const raw = localStorage.getItem('sublink_conversion_history_v1');
+                    if (!raw) {
+                        this.conversionHistory = [];
+                        return;
+                    }
+                    const parsed = JSON.parse(raw);
+                    this.conversionHistory = Array.isArray(parsed) ? parsed : [];
+                } catch {
+                    this.conversionHistory = [];
+                }
+            },
+
+            saveHistory() {
+                try {
+                    localStorage.setItem('sublink_conversion_history_v1', JSON.stringify(this.conversionHistory || []));
+                } catch (e) {
+                    console.warn('Failed to save conversion history', e);
+                }
+            },
+
+            formatHistoryLabel(date) {
+                const pad = (n) => String(n).padStart(2, '0');
+                const yyyy = date.getFullYear();
+                const mm = pad(date.getMonth() + 1);
+                const dd = pad(date.getDate());
+                const hh = pad(date.getHours());
+                const mi = pad(date.getMinutes());
+                const ss = pad(date.getSeconds());
+                return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
+            },
+
+            addHistoryEntry(entry) {
+                const now = new Date();
+                const item = {
+                    id: `${now.getTime()}-${Math.random().toString(16).slice(2)}`,
+                    label: this.formatHistoryLabel(now),
+                    createdAt: now.toISOString(),
+                    ...entry
+                };
+
+                this.conversionHistory = [item, ...(this.conversionHistory || [])].slice(0, this.historyMaxItems);
+                this.saveHistory();
+            },
+
+            removeHistoryEntry(id) {
+                this.conversionHistory = (this.conversionHistory || []).filter(item => item?.id !== id);
+                this.saveHistory();
+            },
+
+            clearHistory() {
+                this.conversionHistory = [];
+                this.saveHistory();
+            },
+
+            restoreHistoryEntry(id) {
+                const item = (this.conversionHistory || []).find(entry => entry?.id === id);
+                if (!item) return;
+
+                const state = item.state || {};
+                if (typeof state.input === 'string') this.input = state.input;
+                if (typeof state.customUA === 'string') this.customUA = state.customUA;
+                if (typeof state.selectedPredefinedRule === 'string') this.selectedPredefinedRule = state.selectedPredefinedRule;
+                if (Array.isArray(state.selectedRules)) this.selectedRules = state.selectedRules;
+                if (typeof state.groupByCountry === 'boolean') this.groupByCountry = state.groupByCountry;
+                if (typeof state.includeAutoSelect === 'boolean') this.includeAutoSelect = state.includeAutoSelect;
+                if (typeof state.enableClashUI === 'boolean') this.enableClashUI = state.enableClashUI;
+                if (typeof state.externalController === 'string') this.externalController = state.externalController;
+                if (typeof state.externalUiDownloadUrl === 'string') this.externalUiDownloadUrl = state.externalUiDownloadUrl;
+                if (typeof state.configType === 'string') this.configType = state.configType;
+                if (typeof state.configEditor === 'string') this.configEditor = state.configEditor;
+                if (typeof state.currentConfigId === 'string') {
+                    this.currentConfigId = state.currentConfigId;
+                    this.updateConfigIdInUrl(state.currentConfigId || null);
+                }
+
+                if (Array.isArray(state.customRules)) {
+                    window.dispatchEvent(new CustomEvent('restore-custom-rules', {
+                        detail: { rules: state.customRules }
+                    }));
+                }
+
+                this.showAdvanced = true;
+                this.shortenedLinks = null;
+                if (typeof item.queryString === 'string' && item.queryString) {
+                    const origin = window.location.origin;
+                    this.generatedLinks = {
+                        xray: origin + '/xray?' + item.queryString,
+                        singbox: origin + '/singbox?' + item.queryString,
+                        clash: origin + '/clash?' + item.queryString,
+                        surge: origin + '/surge?' + item.queryString
+                    };
+                } else {
+                    this.generatedLinks = null;
+                }
             },
 
             toggleAccordion(section) {
@@ -324,6 +458,25 @@ export const formLogicFn = (t) => {
                         surge: origin + '/surge?' + queryString
                     };
 
+                    this.addHistoryEntry({
+                        queryString,
+                        state: {
+                            input: this.input,
+                            selectedPredefinedRule: this.selectedPredefinedRule,
+                            selectedRules: this.selectedRules,
+                            customRules,
+                            groupByCountry: this.groupByCountry,
+                            includeAutoSelect: this.includeAutoSelect,
+                            enableClashUI: this.enableClashUI,
+                            externalController: this.externalController,
+                            externalUiDownloadUrl: this.externalUiDownloadUrl,
+                            customUA: this.customUA,
+                            configType: this.configType,
+                            configEditor: this.configEditor,
+                            currentConfigId: this.currentConfigId
+                        }
+                    });
+
                     // Scroll to results
                     setTimeout(() => {
                         const resultsDiv = document.querySelector('.mt-12');
@@ -337,6 +490,42 @@ export const formLogicFn = (t) => {
                     alert(window.APP_TRANSLATIONS.errorGeneratingLinks);
                 } finally {
                     this.loading = false;
+                }
+            },
+
+            getRawConfigUrl() {
+                const origin = window.location.origin;
+                const baseLink = (this.shortenedLinks || this.generatedLinks)?.singbox;
+                const inputLink = (this.input || '').trim();
+
+                if (baseLink) {
+                    return `${origin}/raw?url=${encodeURIComponent(baseLink)}`;
+                }
+
+                if (this.isSubscriptionUrl(inputLink)) {
+                    return `${origin}/raw?url=${encodeURIComponent(inputLink)}`;
+                }
+
+                return '';
+            },
+
+            async fetchRawConfig() {
+                const url = this.getRawConfigUrl();
+                if (!url) return;
+                this.rawConfigLoading = true;
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) {
+                        const text = await response.text();
+                        throw new Error(text || response.statusText || 'Request failed');
+                    }
+                    this.rawConfigText = await response.text();
+                    this.showAdvanced = true;
+                } catch (e) {
+                    console.error('Failed to fetch raw config', e);
+                    alert((e?.message || '').toString());
+                } finally {
+                    this.rawConfigLoading = false;
                 }
             },
 

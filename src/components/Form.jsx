@@ -44,9 +44,100 @@ export const Form = (props) => {
     (${formLogicFn.toString()})();
   `;
 
+  const SidebarPanels = () => (
+    <div class="space-y-6">
+      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+            <i class="fas fa-history text-gray-400"></i>
+            {t('conversionHistory')}
+          </h3>
+          <button
+            type="button"
+            x-on:click="clearHistory()"
+            x-show="conversionHistory && conversionHistory.length"
+            class="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+          >
+            {t('clear')}
+          </button>
+        </div>
+
+        <template x-if="!conversionHistory || conversionHistory.length === 0">
+          <p class="text-xs text-gray-500 dark:text-gray-400">{t('noHistory')}</p>
+        </template>
+
+        <div class="space-y-2 max-h-[60vh] overflow-auto pr-1" x-show="conversionHistory && conversionHistory.length">
+          <template x-for="item in conversionHistory" x-bind:key="item.id">
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                class="flex-1 text-left px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-xs text-gray-700 dark:text-gray-300 hover:border-primary-200 dark:hover:border-primary-900/60 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
+                x-text="item.label"
+                x-on:click="restoreHistoryEntry(item.id)"
+              ></button>
+              <button
+                type="button"
+                class="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                x-on:click="removeHistoryEntry(item.id)"
+                title="Remove"
+              >
+                <i class="fas fa-times text-xs"></i>
+              </button>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+        <h3 class="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-3">
+          <i class="fas fa-file-lines text-gray-400"></i>
+          {t('rawConfig')}
+        </h3>
+
+        <div class="space-y-2">
+          <div class="text-xs text-gray-500 dark:text-gray-400" x-show="getRawConfigUrl()">{t('rawConfigDesc')}</div>
+          <div class="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900" x-show="getRawConfigUrl()">
+            <p class="font-mono text-xs text-gray-600 dark:text-gray-400 break-all" x-text="getRawConfigUrl()"></p>
+          </div>
+          <button
+            type="button"
+            x-on:click="fetchRawConfig()"
+            x-bind:disabled="!getRawConfigUrl() || rawConfigLoading"
+            class="w-full px-3 py-2 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-primary-50 dark:hover:bg-primary-900/20 hover:text-primary-600 dark:hover:text-primary-400"
+          >
+            <i class="fas" x-bind:class="rawConfigLoading ? 'fa-spinner fa-spin' : 'fa-download'"></i>
+            <span x-text="rawConfigLoading ? (processingText || '${t('processing')}') : '${t('fetchRawConfig')}'"></span>
+          </button>
+        </div>
+
+        <div class="mt-3" x-show="rawConfigText">
+          <textarea
+            readonly
+            x-model="rawConfigText"
+            rows="8"
+            class="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 font-mono text-xs text-gray-700 dark:text-gray-300"
+          ></textarea>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
-    <div x-data="formData()" x-init="init()" class="max-w-4xl mx-auto">
-      <form {...{'x-on:submit.prevent': 'submitForm'}} class="space-y-8">
+    <div x-data="formData()" x-init="init()" class="max-w-6xl mx-auto">
+      <div class="flex gap-6">
+        {/* Sidebar */}
+        <aside class="hidden lg:block w-64 shrink-0">
+          <div class="sticky top-24 space-y-6">
+            <SidebarPanels />
+          </div>
+        </aside>
+
+        <div class="flex-1 min-w-0">
+          <div class="lg:hidden space-y-6 mb-6">
+            <SidebarPanels />
+          </div>
+
+          <form {...{'x-on:submit.prevent': 'submitForm'}} class="space-y-8">
 
       {/* Input Section */}
       <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 transition-all duration-300 hover:shadow-md group">
@@ -338,7 +429,9 @@ class="px-6 py-3.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 bo
 { t('clear') }
           </button>
         </div>
-      </form>
+          </form>
+        </div>
+      </div>
 
   {/* Results Section */ }
   <div x-cloak x-show="generatedLinks" x-data="{ copied: null }" {...{'x-transition:enter': 'transition ease-out duration-500', 'x-transition:enter-start': 'opacity-0 transform translate-y-8', 'x-transition:enter-end': 'opacity-100 transform translate-y-0'}} class="mt-12">

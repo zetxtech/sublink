@@ -91,4 +91,15 @@ describe('Worker', () => {
         expect(text).toBeTruthy();
         expect(kvMock.put).toHaveBeenCalled();
     });
+
+    it('GET /raw returns decoded subscription text', async () => {
+        const app = createTestApp();
+        const rawText = 'vmess://example\nss://example2';
+        const base64 = Buffer.from(rawText, 'utf8').toString('base64');
+        const res = await app.request(`http://localhost/raw?config=${encodeURIComponent(base64)}`);
+        expect(res.status).toBe(200);
+        expect(res.headers.get('content-type')).toContain('text/plain');
+        const text = await res.text();
+        expect(text.trim()).toBe(rawText);
+    });
 });

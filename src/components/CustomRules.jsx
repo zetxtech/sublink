@@ -240,13 +240,49 @@ export const CustomRules = (props) => {
             jsonContent: '[]',
             jsonError: null,
             jsonValid: false,
+            storageKey: 'sublink_custom_rules_v1',
+            modeStorageKey: 'sublink_custom_rules_mode_v1',
             
             init() {
+              try {
+                const savedMode = localStorage.getItem(this.modeStorageKey);
+                if (savedMode === 'form' || savedMode === 'json') {
+                  this.mode = savedMode;
+                }
+              } catch {}
+
+              try {
+                const raw = localStorage.getItem(this.storageKey);
+                if (raw) {
+                  const parsed = JSON.parse(raw);
+                  if (Array.isArray(parsed)) {
+                    this.rules = parsed;
+                    this.jsonContent = JSON.stringify(parsed, null, 2);
+                  } else if (parsed && Array.isArray(parsed.rules)) {
+                    this.rules = parsed.rules;
+                    this.jsonContent = JSON.stringify(parsed.rules, null, 2);
+                    if (parsed.mode === 'form' || parsed.mode === 'json') {
+                      this.mode = parsed.mode;
+                    }
+                  }
+                }
+              } catch {}
+
               // Watch for changes in rules to update JSON content
               this.$watch('rules', (value) => {
                 if (this.mode === 'form') {
                   this.jsonContent = JSON.stringify(value, null, 2);
                 }
+
+                try {
+                  localStorage.setItem(this.storageKey, JSON.stringify(value || []));
+                } catch {}
+              });
+
+              this.$watch('mode', (value) => {
+                try {
+                  localStorage.setItem(this.modeStorageKey, value);
+                } catch {}
               });
 
               // Watch for changes in JSON content to update rules
@@ -274,6 +310,11 @@ export const CustomRules = (props) => {
                   this.rules = event.detail.rules;
                   this.jsonContent = JSON.stringify(event.detail.rules, null, 2);
                   this.mode = 'json'; // Switch to JSON mode to show imported rules
+
+                  try {
+                    localStorage.setItem(this.storageKey, JSON.stringify(event.detail.rules || []));
+                    localStorage.setItem(this.modeStorageKey, 'json');
+                  } catch {}
                 }
               });
             },
@@ -305,6 +346,10 @@ export const CustomRules = (props) => {
               setTimeout(() => {
                 this.rules = [];
                 this.jsonContent = '[]';
+
+                try {
+                  localStorage.removeItem(this.storageKey);
+                } catch {}
               }, 200);
             },
             

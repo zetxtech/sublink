@@ -162,6 +162,12 @@ export const translations = {
     viewRelease: '查看更新',
     updateGuide: '更新指南',
     later: '稍后'
+    ,
+    conversionHistory: '历史记录',
+    noHistory: '暂无历史记录',
+    rawConfig: '原始配置',
+    rawConfigDesc: '基于订阅链接聚合并返回原始内容（明文）。',
+    fetchRawConfig: '获取原始配置'
   },
   'en-US': {
     enableClashUI: 'Enable Clash API',
@@ -321,6 +327,12 @@ export const translations = {
     viewRelease: 'View Release',
     updateGuide: 'Update Guide',
     later: 'Later'
+    ,
+    conversionHistory: 'History',
+    noHistory: 'No history yet',
+    rawConfig: 'Raw Config',
+    rawConfigDesc: 'Aggregate and return raw subscription content (plain text).',
+    fetchRawConfig: 'Fetch Raw Config'
   },
   'fa': {
     missingInput: 'پارامتر ورودی وجود ندارد',
@@ -474,6 +486,12 @@ export const translations = {
     viewRelease: 'مشاهده انتشار',
     updateGuide: 'راهنمای به‌روزرسانی',
     later: 'بعداً'
+    ,
+    conversionHistory: 'تاریخچه',
+    noHistory: 'هنوز تاریخچه‌ای وجود ندارد',
+    rawConfig: 'پیکربندی خام',
+    rawConfigDesc: 'محتوای خام اشتراک را تجمیع کرده و به صورت متن ساده برمی‌گرداند.',
+    fetchRawConfig: 'دریافت پیکربندی خام'
   },
   'ru': {
     missingInput: 'Отсутствует входной параметр',
@@ -627,6 +645,12 @@ export const translations = {
     viewRelease: 'Посмотреть релиз',
     updateGuide: 'Руководство по обновлению',
     later: 'Позже'
+    ,
+    conversionHistory: 'История',
+    noHistory: 'История пуста',
+    rawConfig: 'Исходная конфигурация',
+    rawConfigDesc: 'Собирает и возвращает исходное содержимое подписки (текст).',
+    fetchRawConfig: 'Получить исходную конфигурацию'
   }
 };
 

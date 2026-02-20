@@ -248,6 +248,78 @@ export function createApp(bindings = {}) {
         }
     });
 
+    app.get('/raw', async (c) => {
+        try {
+            const url = c.req.query('url');
+            let config = c.req.query('config');
+
+            let userAgent = c.req.query('ua') || getRequestHeader(c.req, 'User-Agent') || DEFAULT_USER_AGENT;
+
+            if (url) {
+                let parsedUrl;
+                try {
+                    parsedUrl = new URL(url);
+                } catch {
+                    return c.text('Invalid URL parameter', 400);
+                }
+
+                const shortMatch = parsedUrl.pathname.match(/^\/([bcxs])\/([a-zA-Z0-9_-]+)$/);
+                if (shortMatch) {
+                    const shortLinks = requireShortLinkService(services.shortLinks);
+                    const originalParam = await shortLinks.resolveShortCode(shortMatch[2]);
+                    if (!originalParam) return c.text('Short URL not found', 404);
+
+                    const mapping = { b: 'singbox', c: 'clash', x: 'xray', s: 'surge' };
+                    parsedUrl = new URL(`${parsedUrl.origin}/${mapping[shortMatch[1]]}${originalParam}`);
+                }
+
+                const params = new URLSearchParams(parsedUrl.search);
+                config = params.get('config') || '';
+                userAgent = params.get('ua') || userAgent;
+            }
+
+            if (!config) {
+                return c.text('Missing config parameter', 400);
+            }
+
+            const proxylist = config.split('\n');
+            const finalProxyList = [];
+            const headers = { 'User-Agent': userAgent };
+
+            for (const proxy of proxylist) {
+                const trimmedProxy = proxy.trim();
+                if (!trimmedProxy) continue;
+
+                if (trimmedProxy.startsWith('http://') || trimmedProxy.startsWith('https://')) {
+                    try {
+                        const response = await fetch(trimmedProxy, { method: 'GET', headers });
+                        const text = await response.text();
+                        let processed = tryDecodeSubscriptionLines(text, { decodeUriComponent: true });
+                        if (!Array.isArray(processed)) processed = [processed];
+                        finalProxyList.push(...processed.filter(item => typeof item === 'string' && item.trim() !== ''));
+                    } catch (e) {
+                        runtime.logger.warn('Failed to fetch the proxy', e);
+                    }
+                } else {
+                    let processed = tryDecodeSubscriptionLines(trimmedProxy);
+                    if (!Array.isArray(processed)) processed = [processed];
+                    finalProxyList.push(...processed.filter(item => typeof item === 'string' && item.trim() !== ''));
+                }
+            }
+
+            const finalString = finalProxyList.join('\n').trim();
+            if (!finalString) {
+                return c.text('Missing config parameter', 400);
+            }
+
+            return c.text(finalString, 200, {
+                'Content-Type': 'text/plain; charset=utf-8'
+            });
+        } catch (error) {
+            return handleError(c, error, runtime.logger);
+        }
+    });
+
     app.get('/xray', async (c) => {
         const inputString = c.req.query('config');
         if (!inputString) {
