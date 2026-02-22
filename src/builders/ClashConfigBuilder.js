@@ -299,7 +299,7 @@ export class ClashConfigBuilder extends BaseConfigBuilder {
             },
             isSame: (a = {}, b = {}) => {
                 const { name: _name, ...restOfProxy } = b;
-                const { name: __name, ...restOfExisting } = a;
+                const { name: _nameExisting, ...restOfExisting } = a;
                 return JSON.stringify(restOfProxy) === JSON.stringify(restOfExisting);
             }
         });
