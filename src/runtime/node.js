@@ -4,6 +4,8 @@ import { UpstashKVAdapter } from '../adapters/kv/upstashKv.js';
 import { MemoryKVAdapter } from '../adapters/kv/memoryKv.js';
 import { RedisKVAdapter } from '../adapters/kv/redisKv.js';
 
+const MEMORY_KV_SINGLETON_KEY = '__sublinkMemoryKvAdapter';
+
 export function createNodeRuntime(env = process.env) {
     return {
         kv: resolveKv(env),
@@ -30,7 +32,12 @@ function resolveKv(env) {
     if (env.DISABLE_MEMORY_KV === 'true') {
         return null;
     }
-    return new MemoryKVAdapter();
+
+    if (!globalThis[MEMORY_KV_SINGLETON_KEY]) {
+        globalThis[MEMORY_KV_SINGLETON_KEY] = new MemoryKVAdapter();
+    }
+
+    return globalThis[MEMORY_KV_SINGLETON_KEY];
 }
 
 function createRedisAdapter(env) {

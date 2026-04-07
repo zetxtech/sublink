@@ -1,5 +1,17 @@
 import { parseServerInfo, parseUrlParams, createTlsConfig, createTransportConfig, parseBool } from '../../utils.js';
 
+function safeDecodeComponent(value) {
+    if (typeof value !== 'string') {
+        return value;
+    }
+
+    try {
+        return decodeURIComponent(value);
+    } catch {
+        return value;
+    }
+}
+
 export function parseVless(url) {
     const { addressPart, params, name } = parseUrlParams(url);
     const [uuid, serverInfo] = addressPart.split('@');
@@ -20,10 +32,10 @@ export function parseVless(url) {
 
     return {
         type: 'vless',
-        tag: name,
+        tag: safeDecodeComponent(name),
         server: host,
         server_port: port,
-        uuid: decodeURIComponent(uuid),
+        uuid: safeDecodeComponent(uuid),
         tcp_fast_open: false,
         tls,
         transport,

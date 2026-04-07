@@ -24,19 +24,19 @@ export const UpdateChecker = () => {
             <div class="bg-white dark:bg-gray-800/95 backdrop-blur-md border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg p-4 ring-1 ring-black/5">
                 <div class="flex items-start gap-3">
                     <div class="flex-shrink-0 pt-0.5">
-                        <i class="fas fa-arrow-up text-primary-500"></i>
+                        <i class="fas fa-arrow-up text-sky-500"></i>
                     </div>
                     <div class="flex-1 min-w-0">
                         <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100 flex items-center gap-2">
                             <span x-text="i18n.newVersionAvailable || 'New Version Available'"></span>
-                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 border border-primary-100 dark:border-primary-800" x-text="'v' + latestVersion"></span>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-sky-50 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400 border border-sky-100 dark:border-sky-800" x-text="'v' + latestVersion"></span>
                         </h4>
                         <div class="mt-3 flex items-center gap-3 flex-wrap">
                             <a
                                 href={releaseUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                class="text-xs font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors"
+                                class="text-xs font-medium text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 transition-colors"
                             >
                                 <span x-text="i18n.viewRelease || 'View Release'"></span>
                             </a>

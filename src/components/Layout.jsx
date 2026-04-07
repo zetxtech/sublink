@@ -16,9 +16,232 @@ export const Layout = (props) => {
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
-        <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
-        <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.10/dist/cdn.min.js" onerror="window.__alpineFailed=true"></script>
+        <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js" crossorigin="anonymous"></script>
+        <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js" crossorigin="anonymous"></script>
+        <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.10/dist/cdn.min.js" crossorigin="anonymous" onerror="window.__alpineFailed=true"></script>
+        <script>
+          (function () {
+            // Error capture helper for debugging client-side runtime issues.
+            // Enable UI overlay via ?debug=1, while always caching the last error in localStorage.
+            const params = new URLSearchParams(window.location.search);
+            const debugEnabled = params.get('debug') === '1';
+            const storageKey = 'sublink_last_client_error';
+
+            function serializeReason(reason) {
+              if (!reason) return { message: 'Unknown error', stack: '' };
+              if (reason instanceof Error) return { message: reason.message || String(reason), stack: reason.stack || '' };
+              if (typeof reason === 'object') {
+                const message = reason.message ? String(reason.message) : JSON.stringify(reason);
+                return { message, stack: reason.stack ? String(reason.stack) : '' };
+              }
+              return { message: String(reason), stack: '' };
+            }
+
+            function cacheError(payload) {
+              try {
+                localStorage.setItem(storageKey, JSON.stringify(payload));
+              } catch (_) {
+                // ignore
+              }
+            }
+
+            window.copyTextToClipboard = async function (value) {
+              const text = String(value ?? '');
+
+              if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+                try {
+                  await navigator.clipboard.writeText(text);
+                  return true;
+                } catch (_) {
+                  // Fall through to the legacy copy path.
+                }
+              }
+
+              const textarea = document.createElement('textarea');
+              textarea.value = text;
+              textarea.setAttribute('readonly', '');
+              textarea.style.position = 'fixed';
+              textarea.style.top = '-9999px';
+              textarea.style.left = '-9999px';
+              document.body.appendChild(textarea);
+              textarea.focus();
+              textarea.select();
+
+              let copied = false;
+              try {
+                copied = document.execCommand('copy');
+              } finally {
+                textarea.remove();
+              }
+
+              if (!copied) {
+                throw new Error('Clipboard copy failed');
+              }
+
+              return true;
+            };
+
+            function getResourceTargetInfo(target) {
+              if (!target || typeof target !== 'object') return null;
+              const tagName = (target.tagName || '').toUpperCase();
+              if (!tagName) return null;
+              if (tagName === 'SCRIPT') {
+                return { tagName, src: target.src || '' };
+              }
+              if (tagName === 'LINK') {
+                return { tagName, href: target.href || '', rel: target.rel || '' };
+              }
+              return { tagName };
+            }
+
+            function showOverlay(payload) {
+              if (!debugEnabled) return;
+              try {
+                const append = () => {
+                  const body = document.body;
+                  if (!body) {
+                    return false;
+                  }
+
+                  const existing = document.getElementById('sublink-debug-error-overlay');
+                  if (existing) existing.remove();
+
+                  const container = document.createElement('div');
+                  container.id = 'sublink-debug-error-overlay';
+                  container.style.position = 'fixed';
+                  container.style.inset = '0';
+                  container.style.zIndex = '999';
+                  container.style.background = 'rgba(0,0,0,0.6)';
+                  container.style.padding = '16px';
+                  container.style.overflow = 'auto';
+
+                  const box = document.createElement('div');
+                  box.style.maxWidth = '960px';
+                  box.style.margin = '0 auto';
+                  box.style.background = '#fff';
+                  box.style.color = '#111827';
+                  box.style.borderRadius = '12px';
+                  box.style.boxShadow = '0 10px 30px rgba(0,0,0,0.25)';
+                  box.style.padding = '16px';
+
+                  const header = document.createElement('div');
+                  header.style.display = 'flex';
+                  header.style.alignItems = 'center';
+                  header.style.justifyContent = 'space-between';
+                  header.style.gap = '12px';
+                  header.style.marginBottom = '12px';
+
+                  const title = document.createElement('div');
+                  title.style.fontWeight = '600';
+                  title.textContent = '客户端错误（debug=1）';
+
+                  const close = document.createElement('button');
+                  close.type = 'button';
+                  close.textContent = '关闭';
+                  close.style.padding = '6px 10px';
+                  close.style.borderRadius = '8px';
+                  close.style.border = '1px solid #e5e7eb';
+                  close.style.background = '#f3f4f6';
+                  close.style.cursor = 'pointer';
+                  close.addEventListener('click', () => container.remove());
+
+                  const pre = document.createElement('pre');
+                  pre.style.fontSize = '12px';
+                  pre.style.whiteSpace = 'pre-wrap';
+                  pre.style.wordBreak = 'break-word';
+                  pre.style.background = '#f9fafb';
+                  pre.style.border = '1px solid #e5e7eb';
+                  pre.style.borderRadius = '10px';
+                  pre.style.padding = '12px';
+                  pre.textContent = JSON.stringify(payload, null, 2);
+
+                  const hint = document.createElement('div');
+                  hint.style.fontSize = '12px';
+                  hint.style.color = '#4b5563';
+                  hint.style.marginTop = '12px';
+                  hint.textContent = '请复制以上内容（包含 message/stack/source/line/column），用于定位 “is not a function” 的真实来源。';
+
+                  header.appendChild(title);
+                  header.appendChild(close);
+                  box.appendChild(header);
+                  box.appendChild(pre);
+                  box.appendChild(hint);
+                  container.appendChild(box);
+                  body.appendChild(container);
+                  return true;
+                };
+
+                const existing = document.getElementById('sublink-debug-error-overlay');
+                if (existing) existing.remove();
+
+                if (!append()) {
+                  document.addEventListener('DOMContentLoaded', () => {
+                    append();
+                  }, { once: true });
+                }
+              } catch (_) {
+                // ignore
+              }
+            }
+
+            // Capture resource loading errors (script/css) with src/href.
+            // Use capture phase to receive the event before it gets normalized.
+            window.addEventListener('error', (e) => {
+              const info = getResourceTargetInfo(e.target);
+              if (!info) return;
+              const payload = {
+                type: 'resource-error',
+                ts: new Date().toISOString(),
+                resource: info
+              };
+              cacheError(payload);
+              showOverlay(payload);
+            }, true);
+
+            // Capture runtime errors.
+            window.addEventListener('error', (e) => {
+              const err = serializeReason(e.error);
+              const payload = {
+                type: 'error',
+                ts: new Date().toISOString(),
+                message: e.message || err.message,
+                stack: err.stack,
+                source: e.filename || '',
+                line: e.lineno || 0,
+                column: e.colno || 0
+              };
+              cacheError(payload);
+              showOverlay(payload);
+            });
+
+            window.addEventListener('unhandledrejection', (e) => {
+              const err = serializeReason(e.reason);
+              const payload = {
+                type: 'unhandledrejection',
+                ts: new Date().toISOString(),
+                message: err.message,
+                stack: err.stack
+              };
+              cacheError(payload);
+              showOverlay(payload);
+            });
+
+            if (debugEnabled) {
+              try {
+                const cached = localStorage.getItem(storageKey);
+                if (cached) {
+                  const payload = JSON.parse(cached);
+                  const timestamp = payload && payload.ts ? Date.parse(payload.ts) : NaN;
+                  if (Number.isFinite(timestamp) && (Date.now() - timestamp) < 60000) {
+                    showOverlay(payload);
+                  }
+                }
+              } catch (_) {
+                // ignore
+              }
+            }
+          })();
+        </script>
         <script>
           window.__alpineLoaded = false;
           document.addEventListener('alpine:init', () => { window.__alpineLoaded = true; });
@@ -31,38 +254,6 @@ export const Layout = (props) => {
               document.body.appendChild(warning);
             }
           });
-        </script>
-        <script>
-          tailwind.config = {
-            darkMode: 'class',
-            theme: {
-              extend: {
-                colors: {
-                  primary: {
-                    50: '#eef9ff',
-                    100: '#dcf2ff',
-                    200: '#b2e6ff',
-                    300: '#6ed4ff',
-                    400: '#33c5ff', // Spaceship Blue
-                    500: '#0aa3eb',
-                    600: '#0082ca',
-                    700: '#0068a3',
-                    800: '#005887',
-                    900: '#06496f',
-                    950: '#042f4a',
-                  },
-                  gray: {
-                    850: '#1f2937',
-                    900: '#111827',
-                    950: '#0b0f19', // Deep dark for background
-                  }
-                },
-                fontFamily: {
-                  sans: ['Inter', 'sans-serif'],
-                }
-              }
-            }
-          }
         </script>
         <style>
           body {

@@ -1,5 +1,5 @@
 import { BaseConfigBuilder } from './BaseConfigBuilder.js';
-import { groupProxiesByCountry } from '../utils.js';
+import { groupProxiesByCountry, getCountryDisplayName } from '../utils.js';
 import { SURGE_CONFIG, SURGE_SITE_RULE_SET_BASEURL, SURGE_IP_RULE_SET_BASEURL, generateRules, getOutbounds, PREDEFINED_RULE_SETS, DIRECT_DEFAULT_RULES } from '../config/index.js';
 import { addProxyWithDedup } from './helpers/proxyHelpers.js';
 import { buildSelectorMembers, buildNodeSelectMembers, uniqueNames } from './helpers/groupBuilder.js';
@@ -339,8 +339,9 @@ export class SurgeConfigBuilder extends BaseConfigBuilder {
         const countries = Object.keys(countryGroups).sort((a, b) => a.localeCompare(b));
 
         countries.forEach(country => {
-            const { emoji, name, proxies } = countryGroups[country];
-            const groupName = `${emoji} ${name}`;
+            const { emoji, proxies } = countryGroups[country];
+            const displayName = getCountryDisplayName(countryGroups[country], this.lang);
+            const groupName = `${emoji} ${displayName}`;
             countryGroupNames.push(groupName);
             if (!existing.has(groupName.trim())) {
                 this.config['proxy-groups'].push(

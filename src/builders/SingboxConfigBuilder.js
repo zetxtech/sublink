@@ -1,15 +1,15 @@
 
 import { SING_BOX_CONFIG, generateRuleSets, generateRules, getOutbounds, PREDEFINED_RULE_SETS, DIRECT_DEFAULT_RULES } from '../config/index.js';
 import { BaseConfigBuilder } from './BaseConfigBuilder.js';
-import { deepCopy, groupProxiesByCountry } from '../utils.js';
+import { deepCopy, groupProxiesByCountry, getCountryDisplayName } from '../utils.js';
 import { addProxyWithDedup } from './helpers/proxyHelpers.js';
 import { buildSelectorMembers as buildSelectorMemberList, buildNodeSelectMembers, uniqueNames } from './helpers/groupBuilder.js';
 import { normalizeGroupName } from './helpers/groupNameUtils.js';
 
 export class SingboxConfigBuilder extends BaseConfigBuilder {
-    constructor(inputString, selectedRules, customRules, baseConfig, lang, userAgent, groupByCountry = false, enableClashUI = false, externalController, externalUiDownloadUrl, singboxVersion = '1.12', includeAutoSelect = true) {
+    constructor(inputString, selectedRules, customRules, baseConfig, lang, userAgent, groupByCountry = false, enableClashUI = false, externalController, externalUiDownloadUrl, singboxVersion = '1.12', includeAutoSelect = true, useProviders = false) {
         const resolvedBaseConfig = baseConfig ?? SING_BOX_CONFIG;
-        super(inputString, resolvedBaseConfig, lang, userAgent, groupByCountry, includeAutoSelect);
+        super(inputString, resolvedBaseConfig, lang, userAgent, groupByCountry, includeAutoSelect, useProviders);
 
         this.selectedRules = selectedRules;
         this.customRules = customRules;
@@ -269,11 +269,12 @@ export class SingboxConfigBuilder extends BaseConfigBuilder {
         const countryGroupNames = [];
 
         countries.forEach(country => {
-            const { emoji, name, proxies: countryProxies } = countryGroups[country];
+            const { emoji, proxies: countryProxies } = countryGroups[country];
             if (!countryProxies || countryProxies.length === 0) {
                 return;
             }
-            const groupName = `${emoji} ${name}`;
+            const displayName = getCountryDisplayName(countryGroups[country], this.lang);
+            const groupName = `${emoji} ${displayName}`;
             const norm = normalizeGroupName(groupName);
             if (!existingTags.has(norm)) {
                 this.config.outbounds.push({

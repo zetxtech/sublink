@@ -1,4 +1,11 @@
 export const formLogicFn = (t) => {
+  const SUBSCRIPTION_CLIENTS = {
+    xray: "xray",
+    singbox: "singbox",
+    clash: "clash",
+    surge: "surge",
+  };
+
   function parseSurgeValue(rawValue = "") {
     const trimmed = rawValue.trim();
     if (trimmed === "") return "";
@@ -110,6 +117,9 @@ export const formLogicFn = (t) => {
       configEditor: "",
       savingConfig: false,
       currentConfigId: "",
+      showSubscriptionParserModal: false,
+      subscriptionUrlToParse: "",
+      subscriptionUrlError: "",
       saveConfigText: "",
       savingConfigText: "",
       configContentRequiredText: "",
@@ -192,6 +202,11 @@ export const formLogicFn = (t) => {
 
         const initialUrlParams = new URLSearchParams(window.location.search);
         this.currentConfigId = initialUrlParams.get("configId") || "";
+        if (this.currentConfigId) {
+          this.loadStoredConfig(this.currentConfigId).catch((error) => {
+            console.warn("Failed to load initial base config:", error);
+          });
+        }
 
         // Load accordion states
         const savedAccordion = localStorage.getItem("accordionSections");
@@ -309,6 +324,19 @@ export const formLogicFn = (t) => {
         return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
       },
 
+      buildGeneratedLinks(queryString) {
+        const origin = window.location.origin;
+        const baseParams = new URLSearchParams(queryString || "");
+
+        return Object.fromEntries(
+          Object.entries(SUBSCRIPTION_CLIENTS).map(([type, client]) => {
+            const params = new URLSearchParams(baseParams);
+            params.set("client", client);
+            return [type, `${origin}/${type}?${params.toString()}`];
+          }),
+        );
+      },
+
       addHistoryEntry(entry) {
         const now = new Date();
         const item = {
@@ -380,13 +408,7 @@ export const formLogicFn = (t) => {
         this.showAdvanced = true;
         this.shortenedLinks = null;
         if (typeof item.queryString === "string" && item.queryString) {
-          const origin = window.location.origin;
-          this.generatedLinks = {
-            xray: origin + "/xray?" + item.queryString,
-            singbox: origin + "/singbox?" + item.queryString,
-            clash: origin + "/clash?" + item.queryString,
-            surge: origin + "/surge?" + item.queryString,
-          };
+          this.generatedLinks = this.buildGeneratedLinks(item.queryString);
         } else {
           this.generatedLinks = null;
         }
@@ -442,8 +464,7 @@ export const formLogicFn = (t) => {
 
       copySubconverterUrl() {
         const url = this.getSubconverterUrl();
-        navigator.clipboard
-          .writeText(url)
+        window.copyTextToClipboard(url)
           .then(() => {
             this.subconverterCopied = true;
             setTimeout(() => (this.subconverterCopied = false), 2000);
@@ -583,6 +604,107 @@ export const formLogicFn = (t) => {
         }
       },
 
+      openSubscriptionParserModal() {
+        const currentInput = (this.input || "").trim();
+        this.subscriptionUrlToParse = this.isSubscriptionUrl(currentInput)
+          ? currentInput
+          : "";
+        this.subscriptionUrlError = "";
+        this.showSubscriptionParserModal = true;
+
+        setTimeout(() => {
+          const element = document.getElementById("subscription-url-parser-input");
+          if (element) {
+            element.focus();
+            element.select();
+          }
+        }, 0);
+      },
+
+      closeSubscriptionParserModal() {
+        if (this.parsingUrl) {
+          return;
+        }
+        this.showSubscriptionParserModal = false;
+        this.subscriptionUrlError = "";
+      },
+
+      async parseSubscriptionUrlFromModal() {
+        const value = (this.subscriptionUrlToParse || "").trim();
+        const invalidMessage =
+          window.APP_TRANSLATIONS?.invalidSubscriptionUrl ||
+          "请输入有效的结果链接或短链接";
+
+        if (!this.isSubscriptionUrl(value)) {
+          this.subscriptionUrlError = invalidMessage;
+          return;
+        }
+
+        this.subscriptionUrlError = "";
+        const parsed = await this.tryParseSubscriptionUrl(value, { silent: false });
+        if (parsed) {
+          this.showSubscriptionParserModal = false;
+          this.subscriptionUrlToParse = "";
+        }
+      },
+
+      resetParsedFormState() {
+        this.generatedLinks = null;
+        this.shortenedLinks = null;
+        this.groupByCountry = false;
+        this.includeAutoSelect = true;
+        this.enableClashUI = false;
+        this.externalController = "";
+        this.externalUiDownloadUrl = "";
+        this.customUA = "";
+        this.selectedPredefinedRule = "balanced";
+        this.applyPredefinedRule();
+        this.currentConfigId = "";
+        this.configType = "singbox";
+        this.configEditor = "";
+        this.updateConfigIdInUrl(null);
+        window.dispatchEvent(
+          new CustomEvent("restore-custom-rules", {
+            detail: { rules: [] },
+          }),
+        );
+      },
+
+      getMatchingPredefinedRule(selectedRules = []) {
+        const rules = window.PREDEFINED_RULE_SETS || {};
+        const target = JSON.stringify(Array.isArray(selectedRules) ? selectedRules : []);
+
+        for (const [presetName, presetRules] of Object.entries(rules)) {
+          if (JSON.stringify(presetRules) === target) {
+            return presetName;
+          }
+        }
+
+        return "custom";
+      },
+
+      async loadStoredConfig(configId) {
+        if (!configId) {
+          this.currentConfigId = "";
+          this.configType = "singbox";
+          this.configEditor = "";
+          this.updateConfigIdInUrl(null);
+          return true;
+        }
+
+        const response = await fetch(`/config?id=${encodeURIComponent(configId)}`);
+        if (!response.ok) {
+          throw new Error(await response.text());
+        }
+
+        const data = await response.json();
+        this.currentConfigId = data.id || configId;
+        this.configType = data.type || "singbox";
+        this.configEditor = typeof data.content === "string" ? data.content : "";
+        this.updateConfigIdInUrl(this.currentConfigId);
+        return true;
+      },
+
       updateConfigIdInUrl(configId) {
         const url = new URL(window.location.href);
         if (configId) {
@@ -639,12 +761,7 @@ export const formLogicFn = (t) => {
 
           const queryString = params.toString();
 
-          this.generatedLinks = {
-            xray: origin + "/xray?" + queryString,
-            singbox: origin + "/singbox?" + queryString,
-            clash: origin + "/clash?" + queryString,
-            surge: origin + "/surge?" + queryString,
-          };
+          this.generatedLinks = this.buildGeneratedLinks(queryString);
 
           this.addHistoryEntry({
             queryString,
@@ -814,9 +931,9 @@ export const formLogicFn = (t) => {
       },
 
       // Try to parse subscription URL
-      async tryParseSubscriptionUrl(text) {
+      async tryParseSubscriptionUrl(text, options = {}) {
         if (!this.isSubscriptionUrl(text)) {
-          return;
+          return false;
         }
 
         this.parsingUrl = true;
@@ -826,7 +943,7 @@ export const formLogicFn = (t) => {
           try {
             urlToParse = new URL(text);
           } catch {
-            return;
+            return false;
           }
 
           // Check if it's a short link
@@ -841,36 +958,46 @@ export const formLogicFn = (t) => {
             );
             if (!response.ok) {
               console.warn("Failed to resolve short URL");
-              return;
+              return false;
             }
 
             const data = await response.json();
             if (!data.originalUrl) {
               console.warn("No original URL returned");
-              return;
+              return false;
             }
 
             urlToParse = new URL(data.originalUrl);
           }
 
           // Now parse the full URL and populate form
-          this.populateFormFromUrl(urlToParse);
+          await this.populateFormFromUrl(urlToParse);
 
-          // Show a success message
-          const message =
-            window.APP_TRANSLATIONS?.urlParsedSuccess ||
-            "已成功解析订阅链接配置";
-          console.log(message);
+          if (!options.silent) {
+            const message =
+              window.APP_TRANSLATIONS?.urlParsedSuccess ||
+              "已成功解析订阅链接配置";
+            alert(message);
+          }
+          return true;
         } catch (error) {
           console.error("Error parsing subscription URL:", error);
+          if (!options.silent) {
+            const prefix =
+              window.APP_TRANSLATIONS?.parseConfigFailed ||
+              "解析结果链接失败";
+            alert(`${prefix}: ${error?.message || "Unknown error"}`);
+          }
+          return false;
         } finally {
           this.parsingUrl = false;
         }
       },
 
       // Populate form fields from parsed URL
-      populateFormFromUrl(url) {
+      async populateFormFromUrl(url) {
         const params = new URLSearchParams(url.search);
+        this.resetParsedFormState();
 
         // Extract config (the original subscription URLs)
         const config = params.get("config");
@@ -885,7 +1012,7 @@ export const formLogicFn = (t) => {
             const parsed = JSON.parse(selectedRules);
             if (Array.isArray(parsed)) {
               this.selectedRules = parsed;
-              this.selectedPredefinedRule = "custom";
+              this.selectedPredefinedRule = this.getMatchingPredefinedRule(parsed);
             }
           } catch (e) {
             console.warn("Failed to parse selectedRules:", e);
@@ -932,8 +1059,7 @@ export const formLogicFn = (t) => {
 
         const configId = params.get("configId");
         if (configId) {
-          this.currentConfigId = configId;
-          this.updateConfigIdInUrl(configId);
+          await this.loadStoredConfig(configId);
         }
 
         // Expand advanced options if any advanced settings are present

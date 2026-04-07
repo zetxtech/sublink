@@ -1,7 +1,7 @@
 import yaml from 'js-yaml';
 import { CLASH_CONFIG, generateRules, generateClashRuleSets, getOutbounds, PREDEFINED_RULE_SETS, DIRECT_DEFAULT_RULES } from '../config/index.js';
 import { BaseConfigBuilder } from './BaseConfigBuilder.js';
-import { deepCopy, groupProxiesByCountry } from '../utils.js';
+import { deepCopy, groupProxiesByCountry, getCountryDisplayName } from '../utils.js';
 import { addProxyWithDedup } from './helpers/proxyHelpers.js';
 import { buildSelectorMembers, buildNodeSelectMembers, uniqueNames } from './helpers/groupBuilder.js';
 import { emitClashRules, sanitizeClashProxyGroups } from './helpers/clashConfigUtils.js';
@@ -39,12 +39,44 @@ function supportsMrsFormat(userAgent) {
     return true;
 }
 
+function getClashCompatibilityProfile(userAgent) {
+    if (!userAgent) return 'modern';
+    const ua = userAgent.toLowerCase();
+
+    if (ua.includes('mihomo') ||
+        ua.includes('meta') ||
+        ua.includes('clash-verge') ||
+        ua.includes('verge') ||
+        ua.includes('stash') ||
+        ua.includes('metacubex')) {
+        return 'modern';
+    }
+
+    if (ua.includes('clashx') ||
+        ua.includes('clashforwindows') ||
+        ua.includes('clash for windows') ||
+        ua.includes('clashforandroid') ||
+        ua.includes('clash for android') ||
+        ua.includes('cfw') ||
+        ua.includes('openclash') ||
+        ua.includes('merlin') ||
+        ua.includes('clash/')) {
+        return 'legacy';
+    }
+
+    return 'modern';
+}
+
+function isUnsupportedByLegacyClash(proxyType) {
+    return ['vless', 'hysteria2', 'tuic', 'anytls'].includes(proxyType);
+}
+
 export class ClashConfigBuilder extends BaseConfigBuilder {
-    constructor(inputString, selectedRules, customRules, baseConfig, lang, userAgent, groupByCountry = false, enableClashUI = false, externalController, externalUiDownloadUrl, includeAutoSelect = true) {
+    constructor(inputString, selectedRules, customRules, baseConfig, lang, userAgent, groupByCountry = false, enableClashUI = false, externalController, externalUiDownloadUrl, includeAutoSelect = true, useProviders = false) {
         if (!baseConfig) {
             baseConfig = CLASH_CONFIG;
         }
-        super(inputString, baseConfig, lang, userAgent, groupByCountry, includeAutoSelect);
+        super(inputString, baseConfig, lang, userAgent, groupByCountry, includeAutoSelect, useProviders);
         this.selectedRules = selectedRules;
         this.customRules = customRules;
         this.countryGroupNames = [];
@@ -61,6 +93,18 @@ export class ClashConfigBuilder extends BaseConfigBuilder {
      */
     isCompatibleProviderFormat(format) {
         return format === 'clash';
+    }
+
+    isProxySupported(proxy) {
+        if (!proxy?.type) {
+            return false;
+        }
+
+        if (getClashCompatibilityProfile(this.userAgent) !== 'legacy') {
+            return true;
+        }
+
+        return !isUnsupportedByLegacyClash(proxy.type);
     }
 
     /**
@@ -298,9 +342,7 @@ export class ClashConfigBuilder extends BaseConfigBuilder {
                 if (item) item.name = name;
             },
             isSame: (a = {}, b = {}) => {
-                const { name: _name, ...restOfProxy } = b;
-                const { name: _nameExisting, ...restOfExisting } = a;
-                return JSON.stringify(restOfProxy) === JSON.stringify(restOfExisting);
+                return JSON.stringify(a) === JSON.stringify(b);
             }
         });
     }
@@ -446,8 +488,9 @@ export class ClashConfigBuilder extends BaseConfigBuilder {
         const countryGroupNames = [];
 
         countries.forEach(country => {
-            const { emoji, name, proxies } = countryGroups[country];
-            const groupName = `${emoji} ${name}`;
+            const { emoji, proxies } = countryGroups[country];
+            const displayName = getCountryDisplayName(countryGroups[country], this.lang);
+            const groupName = `${emoji} ${displayName}`;
             const norm = normalizeGroupName(groupName);
             if (!existingNames.has(norm)) {
                 this.config['proxy-groups'].push({

@@ -67,7 +67,7 @@ export const ValidatedTextarea = (props) => {
           hideLabelOnMobile: pasteConfig.hideLabelOnMobile !== false,
           className:
             pasteConfig.className ||
-            `${DEFAULT_ACTION_CLASS} hover:bg-primary-50 dark:hover:bg-primary-900/20 hover:text-primary-600 dark:hover:text-primary-400`,
+            `${DEFAULT_ACTION_CLASS} hover:bg-sky-50 dark:hover:bg-sky-900/20 hover:text-sky-600 dark:hover:text-sky-400`,
           title: pasteConfig.title || pasteTitle,
           attrs:
             pasteConfig.attrs || {

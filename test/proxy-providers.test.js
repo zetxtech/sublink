@@ -61,7 +61,13 @@ describe('Auto Proxy Providers Detection', () => {
                 [], // customRules
                 null, // baseConfig
                 'zh-CN', // lang
-                'test-agent' // userAgent
+                'test-agent', // userAgent
+                false,
+                false,
+                null,
+                null,
+                true,
+                true
             );
             const yamlText = await builder.build();
             const config = yaml.load(yamlText);
@@ -105,6 +111,39 @@ describe('Auto Proxy Providers Detection', () => {
             // Should have parsed proxies from sing-box config
             expect(config.proxies.length).toBeGreaterThan(0);
         });
+
+        it('should disable proxy-providers when groupByCountry=true (needs proxy names for country groups)', async () => {
+            fetchSubscriptionWithFormat.mockResolvedValue({
+                content: mockClashYaml,
+                format: 'clash',
+                url: 'https://example.com/clash-sub?token=xxx'
+            });
+
+            const builder = new ClashConfigBuilder(
+                'https://example.com/clash-sub?token=xxx',
+                [],
+                [],
+                null,
+                'zh-CN',
+                'test-agent',
+                true,
+                false,
+                null,
+                null,
+                true,
+                true
+            );
+            const yamlText = await builder.build();
+            const config = yaml.load(yamlText);
+
+            // Provider mode should be disabled, so proxy-providers should not be created.
+            const hasProviders = config['proxy-providers'] && Object.keys(config['proxy-providers']).length > 0;
+            expect(hasProviders).toBeFalsy();
+
+            // Country group should exist based on parsed proxy names.
+            const hkGroup = (config['proxy-groups'] || []).find(g => g && g.name === '🇭🇰 香港');
+            expect(hkGroup).toBeDefined();
+        });
     });
 
     describe('Sing-Box Builder', () => {
@@ -122,7 +161,14 @@ describe('Auto Proxy Providers Detection', () => {
                 [],
                 null,
                 'zh-CN',
-                'test-agent'
+                'test-agent',
+                false,
+                false,
+                null,
+                null,
+                '1.12',
+                true,
+                true
             );
             await builder.build();
             const config = builder.config;
@@ -197,6 +243,39 @@ describe('Auto Proxy Providers Detection', () => {
             const proxyOutbounds = config.outbounds.filter(o => o.server);
             expect(proxyOutbounds.length).toBeGreaterThan(0);
         });
+
+        it('should disable outbound_providers when groupByCountry=true (needs proxy names for country groups)', async () => {
+            fetchSubscriptionWithFormat.mockResolvedValue({
+                content: mockSingboxJson,
+                format: 'singbox',
+                url: 'https://example.com/singbox-sub?token=xxx'
+            });
+
+            const builder = new SingboxConfigBuilder(
+                'https://example.com/singbox-sub?token=xxx',
+                [],
+                [],
+                null,
+                'zh-CN',
+                'test-agent',
+                true,
+                false,
+                null,
+                null,
+                '1.12',
+                true,
+                true
+            );
+            await builder.build();
+            const config = builder.config;
+
+            // Provider mode should be disabled.
+            expect(config.outbound_providers).toBeUndefined();
+
+            // Country group should exist based on parsed proxy tags.
+            const hkGroup = (config.outbounds || []).find(o => o && o.tag === '🇭🇰 香港');
+            expect(hkGroup).toBeDefined();
+        });
     });
 
     describe('Multiple URLs', () => {
@@ -217,7 +296,13 @@ describe('Auto Proxy Providers Detection', () => {
                 [],
                 null,
                 'zh-CN',
-                'test-agent'
+                'test-agent',
+                false,
+                false,
+                null,
+                null,
+                true,
+                true
             );
             const yamlText = await builder.build();
             const config = yaml.load(yamlText);
@@ -254,7 +339,13 @@ describe('Auto Proxy Providers Detection', () => {
                 [],
                 baseConfig,
                 'zh-CN',
-                'test-agent'
+                'test-agent',
+                false,
+                false,
+                null,
+                null,
+                true,
+                true
             );
             const yamlText = await builder.build();
             const config = yaml.load(yamlText);
@@ -292,7 +383,14 @@ describe('Auto Proxy Providers Detection', () => {
                 [],
                 baseConfig,
                 'zh-CN',
-                'test-agent'
+                'test-agent',
+                false,
+                false,
+                null,
+                null,
+                '1.12',
+                true,
+                true
             );
             const config = await builder.build();
 

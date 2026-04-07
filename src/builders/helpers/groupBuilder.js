@@ -36,6 +36,16 @@ export function buildNodeSelectMembers({ proxyList = [], translator, groupByCoun
             ...(includeAutoSelect ? [autoName] : []),
             ...proxyList
         ];
+    // Place DIRECT/REJECT before country groups so country entries appear last.
+    if (groupByCountry) {
+        return uniqueNames([
+            ...(includeAutoSelect ? [autoName] : []),
+            ...(manualGroupName ? [manualGroupName] : []),
+            'DIRECT',
+            'REJECT',
+            ...countryGroupNames
+        ]);
+    }
     return withDirectReject(base);
 }
 
@@ -54,5 +64,16 @@ export function buildSelectorMembers({ proxyList = [], translator, groupByCountr
             translator('outboundNames.Node Select'),
             ...proxyList
         ];
+    // Place DIRECT/REJECT before country groups so country entries appear last.
+    if (groupByCountry) {
+        return uniqueNames([
+            translator('outboundNames.Node Select'),
+            ...(includeAutoSelect ? [translator('outboundNames.Auto Select')] : []),
+            ...(manualGroupName ? [manualGroupName] : []),
+            'DIRECT',
+            'REJECT',
+            ...countryGroupNames
+        ]);
+    }
     return withDirectReject(base);
 }

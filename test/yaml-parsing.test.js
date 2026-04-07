@@ -147,7 +147,7 @@ const testCases = [
     },
     {
         name: '解析 proxy-groups 段',
-        description: '验证 Clash YAML 中的 proxy-groups 被收集以便后续合并',
+        description: '验证 Clash YAML 中的 proxy-groups 不会被 builder 收集（已弃用：输入 proxy-groups 将被忽略）',
         input: `proxies:
   - name: Valid-SS
     type: ss
@@ -166,13 +166,7 @@ proxy-groups:
         expected: {
             proxyCount: 1,
             typeCount: { shadowsocks: 1 },
-            pendingUserProxyGroups: [
-                {
-                    name: '自定义选择',
-                    type: 'select',
-                    proxies: ['DIRECT', 'REJECT', 'Valid-SS', 'NotExist']
-                }
-            ]
+            pendingUserProxyGroups: []
         }
     }
 ];

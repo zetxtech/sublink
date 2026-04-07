@@ -7,7 +7,7 @@ export const Navbar = () => {
         <nav class="fixed top-0 w-full bg-white/80 dark:bg-gray-900/80 backdrop-blur-md shadow-sm border-b border-gray-200 dark:border-gray-800 z-50 transition-all duration-300">
             <div class="container mx-auto px-4">
                 <div class="flex items-center justify-between h-16">
-                    <a href="#" class="flex items-center gap-2 text-xl font-bold text-gray-900 dark:text-white hover:text-primary-500 dark:hover:text-primary-400 transition-colors">
+                    <a href="#" class="flex items-center gap-2 text-xl font-bold text-gray-900 dark:text-white hover:text-sky-500 dark:hover:text-sky-400 transition-colors">
                         <img src="/favicon.ico" alt={`${APP_NAME} logo`} class="w-6 h-6" />
                         <span>{APP_NAME}</span>
                     </a>

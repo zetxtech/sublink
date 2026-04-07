@@ -1,7 +1,17 @@
+const STORE_SINGLETON_KEY = '__sublinkMemoryKvStore';
+const EXPIRATIONS_SINGLETON_KEY = '__sublinkMemoryKvExpirations';
+
 export class MemoryKVAdapter {
     constructor() {
-        this.store = new Map();
-        this.expirations = new Map();
+        if (!globalThis[STORE_SINGLETON_KEY]) {
+            globalThis[STORE_SINGLETON_KEY] = new Map();
+        }
+        if (!globalThis[EXPIRATIONS_SINGLETON_KEY]) {
+            globalThis[EXPIRATIONS_SINGLETON_KEY] = new Map();
+        }
+
+        this.store = globalThis[STORE_SINGLETON_KEY];
+        this.expirations = globalThis[EXPIRATIONS_SINGLETON_KEY];
     }
 
     async get(key) {

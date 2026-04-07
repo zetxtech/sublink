@@ -9,35 +9,31 @@ const t = createTranslator('zh-CN');
 
 describe('Clash Builder Tests', () => {
   it('should clean up proxy-groups and remove non-existent proxies', async () => {
-    const input = `
-proxies:
-  - name: Valid-SS
-    type: ss
-    server: example.com
-    port: 443
-    cipher: aes-128-gcm
-    password: test
-proxy-groups:
-  - name: 自定义选择
-    type: select
-    proxies:
-      - DIRECT
-      - REJECT
-      - Valid-SS
-      - NotExist
-    `;
+    const config = {
+      proxies: [
+        {
+          name: 'Valid-SS',
+          type: 'ss',
+          server: 'example.com',
+          port: 443,
+          cipher: 'aes-128-gcm',
+          password: 'test'
+        }
+      ],
+      'proxy-groups': [
+        {
+          name: '自定义选择',
+          type: 'select',
+          proxies: ['DIRECT', 'REJECT', 'Valid-SS', 'NotExist']
+        }
+      ]
+    };
 
-    const builder = new ClashConfigBuilder(input, 'minimal', [], null, 'zh-CN', 'test-agent');
-    const yamlText = await builder.build();
-    const built = yaml.load(yamlText);
+    sanitizeClashProxyGroups(config);
 
-    const grp = (built['proxy-groups'] || []).find(g => g && g.name === '自定义选择');
+    const grp = (config['proxy-groups'] || []).find(g => g && g.name === '自定义选择');
     expect(grp).toBeDefined();
-
-    const expected = ['DIRECT', 'REJECT', 'Valid-SS'];
-    const actual = grp.proxies || [];
-
-    expect(actual).toEqual(expected);
+    expect(grp.proxies).toEqual(['DIRECT', 'REJECT', 'Valid-SS']);
   });
 
   it('should reference user-defined proxy-providers in generated proxy-groups', async () => {
@@ -115,5 +111,35 @@ ss://YWVzLTEyOC1nY206dGVzdA@example.com:444#US-Node-1
     const fallbackGroup = (built['proxy-groups'] || []).find(g => g && g.name === fallbackName);
     expect(fallbackGroup).toBeDefined();
     expect(fallbackGroup.proxies[0]).not.toBe('DIRECT');
+  });
+
+  it('should filter legacy-unsupported proxies for Clash for Windows', async () => {
+    const input = `hysteria2://580ef251-af2b-49f4-aea4-56a8a8f7a391@demo.de:8443?peer=demo.de&insecure=0&sni=demo.de&alpn=h3#USA-HY2
+vless://580ef251-af2b-49f4-aea4-56a8a8f7a391@1.2.3.4:8443?encryption=none&security=reality&type=tcp&sni=m.media-amazon.com&fp=chrome&pbk=testpublickey&sid=testsid&flow=xtls-rprx-vision#USA-VLESS
+trojan://password@example.com:443?security=tls&sni=example.com#USA-TROJAN`;
+
+    const builder = new ClashConfigBuilder(input, 'minimal', [], null, 'zh-CN', 'Clash for Windows/0.20.39');
+    const yamlText = await builder.build();
+    const built = yaml.load(yamlText);
+
+    const proxyNames = (built.proxies || []).map((proxy) => proxy?.name);
+    expect(proxyNames).toContain('USA-TROJAN');
+    expect(proxyNames).not.toContain('USA-HY2');
+    expect(proxyNames).not.toContain('USA-VLESS');
+  });
+
+  it('should keep modern proxies for Clash.Meta based clients', async () => {
+    const input = `hysteria2://580ef251-af2b-49f4-aea4-56a8a8f7a391@demo.de:8443?peer=demo.de&insecure=0&sni=demo.de&alpn=h3#USA-HY2
+vless://580ef251-af2b-49f4-aea4-56a8a8f7a391@1.2.3.4:8443?encryption=none&security=reality&type=tcp&sni=m.media-amazon.com&fp=chrome&pbk=testpublickey&sid=testsid&flow=xtls-rprx-vision#USA-VLESS
+trojan://password@example.com:443?security=tls&sni=example.com#USA-TROJAN`;
+
+    const builder = new ClashConfigBuilder(input, 'minimal', [], null, 'zh-CN', 'Clash.Meta/1.18.0');
+    const yamlText = await builder.build();
+    const built = yaml.load(yamlText);
+
+    const proxyNames = (built.proxies || []).map((proxy) => proxy?.name);
+    expect(proxyNames).toContain('USA-TROJAN');
+    expect(proxyNames).toContain('USA-HY2');
+    expect(proxyNames).toContain('USA-VLESS');
   });
 });

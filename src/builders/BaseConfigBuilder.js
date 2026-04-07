@@ -4,17 +4,23 @@ import { createTranslator } from '../i18n/index.js';
 import { generateRules, getOutbounds, PREDEFINED_RULE_SETS } from '../config/index.js';
 
 export class BaseConfigBuilder {
-    constructor(inputString, baseConfig, lang, userAgent, groupByCountry = false, includeAutoSelect = true) {
+    constructor(inputString, baseConfig, lang, userAgent, groupByCountry = false, includeAutoSelect = true, useProviders = false) {
         this.inputString = inputString;
         this.config = deepCopy(baseConfig);
         this.customRules = [];
         this.selectedRules = [];
+        this.lang = lang;
         this.t = createTranslator(lang);
         this.userAgent = userAgent;
         this.appliedOverrideKeys = new Set();
         this.groupByCountry = groupByCountry;
         this.includeAutoSelect = includeAutoSelect;
+        this.useProviders = useProviders;
         this.providerUrls = [];  // URLs to use as providers (auto-sync)
+
+        // Deprecated: previously used to merge user-defined proxy-groups from input config.
+        // We intentionally ignore input proxy-groups now to avoid duplicated/undesired groups.
+        this.pendingUserProxyGroups = [];
     }
 
     async build() {
@@ -27,6 +33,9 @@ export class BaseConfigBuilder {
     async parseCustomItems() {
         const input = this.inputString || '';
         const parsedItems = [];
+        let remoteFetchAttempted = false;
+        let remoteFetchFailed = false;
+        let lastRemoteFetchError = null;
 
         // Import the content parser for direct input parsing
         const { parseSubscriptionContent } = await import('../parsers/subscription/subscriptionContentParser.js');
@@ -87,14 +96,17 @@ export class BaseConfigBuilder {
                 // Check if it's an HTTP(S) URL - may use as provider if format matches
                 if (trimmedUrl.startsWith('http://') || trimmedUrl.startsWith('https://')) {
                     const { fetchSubscriptionWithFormat } = await import('../parsers/subscription/httpSubscriptionFetcher.js');
+                    remoteFetchAttempted = true;
 
                     try {
                         const fetchResult = await fetchSubscriptionWithFormat(trimmedUrl, this.userAgent);
                         if (fetchResult) {
                             const { content, format, url: originalUrl } = fetchResult;
 
-                            // If format is compatible with target client, use as provider
-                            if (this.isCompatibleProviderFormat(format)) {
+                            // If format is compatible with target client, use as provider (auto-sync).
+                            // Note: when grouping by country, we need actual proxy names to build country groups,
+                            // so we intentionally disable provider mode and parse the content instead.
+                            if (this.useProviders && this.isCompatibleProviderFormat(format) && !this.groupByCountry) {
                                 this.providerUrls.push(originalUrl);
                                 continue;  // Skip parsing, will be used as provider
                             }
@@ -129,6 +141,8 @@ export class BaseConfigBuilder {
                             }
                         }
                     } catch (error) {
+                        remoteFetchFailed = true;
+                        lastRemoteFetchError = error;
                         console.error('Error processing HTTP subscription:', error);
                     }
                     continue;
@@ -165,6 +179,10 @@ export class BaseConfigBuilder {
                     parsedItems.push(result);
                 }
             }
+        }
+
+        if (parsedItems.length === 0 && remoteFetchAttempted && remoteFetchFailed) {
+            throw lastRemoteFetchError || new Error('Failed to fetch remote subscription');
         }
 
         return parsedItems;
@@ -208,11 +226,7 @@ export class BaseConfigBuilder {
             }
         });
 
-        // Store user proxy-groups for later merge (after system groups are created)
-        if (Array.isArray(overrides['proxy-groups'])) {
-            this.pendingUserProxyGroups = this.pendingUserProxyGroups || [];
-            this.pendingUserProxyGroups.push(...overrides['proxy-groups']);
-        }
+        // Intentionally ignore 'proxy-groups' from input subscriptions/configs.
     }
 
     /**
@@ -282,6 +296,10 @@ export class BaseConfigBuilder {
         throw new Error('convertProxy must be implemented in child class');
     }
 
+    isProxySupported(proxy) {
+        return !!proxy;
+    }
+
     addProxyToConfig(proxy) {
         throw new Error('addProxyToConfig must be implemented in child class');
     }
@@ -313,7 +331,7 @@ export class BaseConfigBuilder {
     addCustomItems(customItems) {
         const validItems = customItems.filter(item => item != null);
         validItems.forEach(item => {
-            if (item?.tag) {
+            if (item?.tag && this.isProxySupported(item)) {
                 const convertedProxy = this.convertProxy(item);
                 if (convertedProxy) {
                     this.addProxyToConfig(convertedProxy);

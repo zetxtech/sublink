@@ -1,5 +1,6 @@
 /** @jsxRuntime automatic */
 /** @jsxImportSource hono/jsx */
+import yaml from 'js-yaml';
 import { Hono } from 'hono';
 import { Layout } from '../components/Layout.jsx';
 import { Navbar } from '../components/Navbar.jsx';
@@ -17,8 +18,21 @@ import { ConfigStorageService } from '../services/configStorageService.js';
 import { ServiceError, MissingDependencyError } from '../services/errors.js';
 import { normalizeRuntime } from '../runtime/runtimeConfig.js';
 import { PREDEFINED_RULE_SETS, SING_BOX_CONFIG, SING_BOX_CONFIG_V1_11, generateSubconverterConfig } from '../config/index.js';
+import { readResponseText } from '../parsers/subscription/httpSubscriptionFetcher.js';
 
 const DEFAULT_USER_AGENT = 'curl/7.74.0';
+const SIMULATED_CLIENT_USER_AGENTS = {
+    xray: 'v2rayN/6.45',
+    singbox: 'sing-box 1.12.0',
+    clash: 'Clash.Meta/1.18.0',
+    surge: 'Surge/3189'
+};
+const CLIENT_USER_AGENT_PATTERNS = {
+    xray: [/xray/i, /v2ray/i, /v2rayn/i, /v2rayng/i, /nekobox/i, /hiddify/i],
+    singbox: [/sing-box/i, /singbox/i, /sfa/i, /nekobox/i, /hiddify/i],
+    clash: [/clash/i, /mihomo/i, /metacubex/i, /clashx/i, /clashforwindows/i, /clash for windows/i, /clashforandroid/i, /clash for android/i, /cfw/i, /openclash/i, /stash/i, /verge/i],
+    surge: [/surge/i]
+};
 
 export function createApp(bindings = {}) {
     const runtime = normalizeRuntime(bindings);
@@ -77,9 +91,11 @@ export function createApp(bindings = {}) {
 
             const selectedRules = parseSelectedRules(c.req.query('selectedRules'));
             const customRules = parseJsonArray(c.req.query('customRules'));
-            const ua = c.req.query('ua') || getRequestHeader(c.req, 'User-Agent') || DEFAULT_USER_AGENT;
+            const clientType = resolveClientType(c.req, 'singbox');
+            const ua = resolveEffectiveUserAgent(c.req, c.req.query('ua'), clientType);
             const groupByCountry = parseBooleanFlag(c.req.query('group_by_country'));
             const includeAutoSelect = c.req.query('include_auto_select') !== 'false';
+            const useProviders = parseBooleanFlag(c.req.query('use_providers'));
             const enableClashUI = parseBooleanFlag(c.req.query('enable_clash_ui'));
             const externalController = c.req.query('external_controller');
             const externalUiDownloadUrl = c.req.query('external_ui_download_url');
@@ -87,8 +103,7 @@ export function createApp(bindings = {}) {
             const lang = c.get('lang');
 
             const requestedSingboxVersion = c.req.query('singbox_version') || c.req.query('sb_version') || c.req.query('sb_ver');
-            const requestUserAgent = getRequestHeader(c.req, 'User-Agent');
-            const singboxConfigVersion = resolveSingboxConfigVersion(requestedSingboxVersion, requestUserAgent);
+            const singboxConfigVersion = resolveSingboxConfigVersion(requestedSingboxVersion, ua);
 
             let baseConfig = singboxConfigVersion === '1.11' ? SING_BOX_CONFIG_V1_11 : SING_BOX_CONFIG;
             if (configId) {
@@ -111,7 +126,8 @@ export function createApp(bindings = {}) {
                 externalController,
                 externalUiDownloadUrl,
                 singboxConfigVersion,
-                includeAutoSelect
+                includeAutoSelect,
+                useProviders
             );
             await builder.build();
             return c.json(builder.config);
@@ -129,9 +145,10 @@ export function createApp(bindings = {}) {
 
             const selectedRules = parseSelectedRules(c.req.query('selectedRules'));
             const customRules = parseJsonArray(c.req.query('customRules'));
-            const ua = c.req.query('ua') || getRequestHeader(c.req, 'User-Agent') || DEFAULT_USER_AGENT;
+            const ua = resolveEffectiveUserAgent(c.req, c.req.query('ua'), resolveClientType(c.req, 'clash'));
             const groupByCountry = parseBooleanFlag(c.req.query('group_by_country'));
             const includeAutoSelect = c.req.query('include_auto_select') !== 'false';
+            const useProviders = parseBooleanFlag(c.req.query('use_providers'));
             const enableClashUI = parseBooleanFlag(c.req.query('enable_clash_ui'));
             const externalController = c.req.query('external_controller');
             const externalUiDownloadUrl = c.req.query('external_ui_download_url');
@@ -155,7 +172,8 @@ export function createApp(bindings = {}) {
                 enableClashUI,
                 externalController,
                 externalUiDownloadUrl,
-                includeAutoSelect
+                includeAutoSelect,
+                useProviders
             );
             await builder.build();
             return c.text(builder.formatConfig(), 200, {
@@ -175,7 +193,7 @@ export function createApp(bindings = {}) {
 
             const selectedRules = parseSelectedRules(c.req.query('selectedRules'));
             const customRules = parseJsonArray(c.req.query('customRules'));
-            const ua = c.req.query('ua') || getRequestHeader(c.req, 'User-Agent') || DEFAULT_USER_AGENT;
+            const ua = resolveEffectiveUserAgent(c.req, c.req.query('ua'), resolveClientType(c.req, 'surge'));
             const groupByCountry = parseBooleanFlag(c.req.query('group_by_country'));
             const includeAutoSelect = c.req.query('include_auto_select') !== 'false';
             const configId = c.req.query('configId');
@@ -252,8 +270,8 @@ export function createApp(bindings = {}) {
         try {
             const url = c.req.query('url');
             let config = c.req.query('config');
-
-            let userAgent = c.req.query('ua') || getRequestHeader(c.req, 'User-Agent') || DEFAULT_USER_AGENT;
+            let clientType = resolveClientType(c.req);
+            let userAgent = resolveEffectiveUserAgent(c.req, c.req.query('ua'), clientType);
 
             if (url) {
                 let parsedUrl;
@@ -275,7 +293,8 @@ export function createApp(bindings = {}) {
 
                 const params = new URLSearchParams(parsedUrl.search);
                 config = params.get('config') || '';
-                userAgent = params.get('ua') || userAgent;
+                clientType = normalizeClientType(params.get('client')) || inferClientTypeFromPathname(parsedUrl.pathname) || clientType;
+                userAgent = resolveRawRequestUserAgent(c.req, params, clientType);
             }
 
             if (!config) {
@@ -293,7 +312,7 @@ export function createApp(bindings = {}) {
                 if (trimmedProxy.startsWith('http://') || trimmedProxy.startsWith('https://')) {
                     try {
                         const response = await fetch(trimmedProxy, { method: 'GET', headers });
-                        const text = await response.text();
+                        const text = await readResponseText(response);
                         let processed = tryDecodeSubscriptionLines(text, { decodeUriComponent: true });
                         if (!Array.isArray(processed)) processed = [processed];
                         finalProxyList.push(...processed.filter(item => typeof item === 'string' && item.trim() !== ''));
@@ -328,7 +347,7 @@ export function createApp(bindings = {}) {
 
         const proxylist = inputString.split('\n');
         const finalProxyList = [];
-        const userAgent = c.req.query('ua') || getRequestHeader(c.req, 'User-Agent') || DEFAULT_USER_AGENT;
+        const userAgent = resolveEffectiveUserAgent(c.req, c.req.query('ua'), resolveClientType(c.req, 'xray'));
         const headers = { 'User-Agent': userAgent };
 
         for (const proxy of proxylist) {
@@ -338,7 +357,7 @@ export function createApp(bindings = {}) {
             if (trimmedProxy.startsWith('http://') || trimmedProxy.startsWith('https://')) {
                 try {
                     const response = await fetch(trimmedProxy, { method: 'GET', headers });
-                    const text = await response.text();
+                    const text = await readResponseText(response);
                     let processed = tryDecodeSubscriptionLines(text, { decodeUriComponent: true });
                     if (!Array.isArray(processed)) processed = [processed];
                     finalProxyList.push(...processed.filter(item => typeof item === 'string' && item.trim() !== ''));
@@ -411,6 +430,30 @@ export function createApp(bindings = {}) {
             if (error instanceof SyntaxError) {
                 return c.text(`Invalid format: ${error.message}`, 400);
             }
+            return handleError(c, error, runtime.logger);
+        }
+    });
+
+    app.get('/config', async (c) => {
+        try {
+            const configId = c.req.query('id') || c.req.query('configId');
+            if (!configId) {
+                return c.text('Missing config parameter', 400);
+            }
+
+            const storage = requireConfigStorage(services.configStorage);
+            const storedConfig = await storage.getConfigById(configId);
+            if (!storedConfig) {
+                return c.text('Not Found', 404);
+            }
+
+            const type = inferConfigTypeFromId(configId);
+            return c.json({
+                id: configId,
+                type,
+                content: stringifyStoredConfig(type, storedConfig)
+            });
+        } catch (error) {
             return handleError(c, error, runtime.logger);
         }
     });
@@ -493,6 +536,97 @@ function parseJsonArray(raw) {
 
 function parseBooleanFlag(value) {
     return value === 'true' || value === true;
+}
+
+function normalizeClientType(value) {
+    if (typeof value !== 'string') {
+        return null;
+    }
+
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) {
+        return null;
+    }
+
+    if (normalized === 'sing-box') return 'singbox';
+    if (normalized === 'clash-meta' || normalized === 'clash_meta' || normalized === 'mihomo') return 'clash';
+    if (normalized === 'v2ray' || normalized === 'v2rayn') return 'xray';
+
+    return Object.hasOwn(SIMULATED_CLIENT_USER_AGENTS, normalized) ? normalized : null;
+}
+
+function inferClientTypeFromPathname(pathname) {
+    if (typeof pathname !== 'string') {
+        return null;
+    }
+
+    const match = pathname.match(/^\/(singbox|clash|xray|surge)(?:\/|$)/i);
+    return match ? normalizeClientType(match[1]) : null;
+}
+
+function resolveClientType(request, fallbackClientType = null) {
+    const explicitClient = normalizeClientType(request?.query?.('client'));
+    if (explicitClient) {
+        return explicitClient;
+    }
+
+    try {
+        const url = new URL(request.url);
+        return inferClientTypeFromPathname(url.pathname) || normalizeClientType(fallbackClientType);
+    } catch {
+        return normalizeClientType(fallbackClientType);
+    }
+}
+
+function getSimulatedClientUserAgent(clientType) {
+    return clientType ? SIMULATED_CLIENT_USER_AGENTS[clientType] || null : null;
+}
+
+function isRecognizedClientUserAgent(userAgent, clientType) {
+    if (typeof userAgent !== 'string' || !userAgent || !clientType) {
+        return false;
+    }
+
+    const patterns = CLIENT_USER_AGENT_PATTERNS[clientType] || [];
+    return patterns.some(pattern => pattern.test(userAgent));
+}
+
+function resolveEffectiveUserAgent(request, explicitUserAgent, clientType = null) {
+    const trimmedExplicit = typeof explicitUserAgent === 'string' ? explicitUserAgent.trim() : '';
+    if (trimmedExplicit) {
+        return trimmedExplicit;
+    }
+
+    const requestUserAgent = getRequestHeader(request, 'User-Agent');
+    if (isRecognizedClientUserAgent(requestUserAgent, clientType)) {
+        return requestUserAgent;
+    }
+
+    return getSimulatedClientUserAgent(clientType) || requestUserAgent || DEFAULT_USER_AGENT;
+}
+
+function resolveRawRequestUserAgent(request, params, clientType = null) {
+    const explicitUserAgent = params?.get?.('ua') || request?.query?.('ua');
+    return resolveEffectiveUserAgent(request, explicitUserAgent, clientType);
+}
+
+function inferConfigTypeFromId(configId) {
+    const prefix = String(configId || '').split('_')[0];
+    if (prefix === 'clash' || prefix === 'surge' || prefix === 'singbox') {
+        return prefix;
+    }
+    return 'singbox';
+}
+
+function stringifyStoredConfig(type, storedConfig) {
+    if (type === 'clash') {
+        return yaml.dump(storedConfig, {
+            noRefs: true,
+            lineWidth: -1
+        });
+    }
+
+    return JSON.stringify(storedConfig, null, 2);
 }
 
 function parseSemverLike(value) {
