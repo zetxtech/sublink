@@ -73,22 +73,17 @@ export const Form = (props) => {
 
       <div class="space-y-2" x-show="conversionHistory && conversionHistory.length">
         <template x-for="item in conversionHistory" x-bind:key="item.id">
-          <div class="flex items-center gap-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-2">
-            <div class="min-w-0 flex-1 px-2 text-sm text-gray-700 dark:text-gray-300 truncate" x-text="item.label"></div>
+          <div class="flex items-center gap-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-3">
+            <div class="min-w-0 flex-1 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <span class="truncate" x-text="item.label"></span>
+              <span x-show="item.sourceCount" class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-sky-50 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400 shrink-0" x-text="item.sourceCount + '个源'"></span>
+            </div>
             <button
               type="button"
               class="px-3 py-2 rounded-lg bg-sky-50 dark:bg-sky-900/20 text-sky-600 dark:text-sky-400 text-xs font-medium hover:bg-sky-100 dark:hover:bg-sky-900/40 transition-colors shrink-0"
               x-on:click="restoreHistoryEntry(item.id); showHistorySidebar = false"
             >
               {t("use")}
-            </button>
-            <button
-              type="button"
-              class="w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 transition-colors shrink-0"
-              x-on:click="removeHistoryEntry(item.id)"
-              title="Remove"
-            >
-              <i class="fas fa-times text-xs"></i>
             </button>
           </div>
         </template>
@@ -175,7 +170,7 @@ export const Form = (props) => {
                       "px-2 py-1 text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded hover:bg-sky-50 dark:hover:bg-sky-900/20 hover:text-sky-600 dark:hover:text-sky-400 transition-colors flex items-center gap-1",
                     title: t("paste"),
                     attrs: {
-                      "x-on:click": "navigator.clipboard.readText().then(text => input = text).catch(() => {})",
+                      "x-on:click": "navigator.clipboard.readText().then(text => { if (input && input.trim()) { input = input.replace(/\\n+$/, '') + '\\n' + text; } else { input = text; } }).catch(() => {})",
                     },
                   },
                   {
@@ -207,39 +202,6 @@ export const Form = (props) => {
               />
             </div>
 
-            <div
-              class="flex items-center justify-between bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-              x-on:click="showAdvanced = !showAdvanced"
-              role="button"
-              tabindex="0"
-              {...{
-                "x-on:keydown.enter.prevent": "showAdvanced = !showAdvanced",
-                "x-on:keydown.space.prevent": "showAdvanced = !showAdvanced",
-              }}
-            >
-              <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-full bg-sky-50 dark:bg-sky-900/20 text-sky-600 dark:text-sky-400 flex items-center justify-center">
-                  <i class="fas fa-sliders-h"></i>
-                </div>
-                <span class="font-semibold text-gray-900 dark:text-white">{t("advancedOptions")}</span>
-              </div>
-              <div class="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 transition-transform duration-300" x-bind:class="{'rotate-180': showAdvanced}">
-                <i class="fas fa-chevron-down"></i>
-              </div>
-            </div>
-
-            <div
-              x-show="showAdvanced"
-              {...{
-                "x-transition:enter": "transition ease-out duration-300",
-                "x-transition:enter-start": "opacity-0 transform -translate-y-4",
-                "x-transition:enter-end": "opacity-100 transform translate-y-0",
-                "x-transition:leave": "transition ease-in duration-200",
-                "x-transition:leave-start": "opacity-100 transform translate-y-0",
-                "x-transition:leave-end": "opacity-0 transform -translate-y-4",
-              }}
-              class="space-y-6"
-            >
               <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
                 <div class="flex items-center justify-between mb-4">
                   <h3 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
@@ -344,28 +306,6 @@ export const Form = (props) => {
               </div>
 
               <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-                <h3 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-2">
-                  <i class="fas fa-file-export text-gray-400"></i>
-                  {t("subconverterConfigTitle")}
-                </h3>
-                <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{t("subconverterConfigDesc")}</p>
-                <div class="px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
-                  <p class="font-mono text-sm text-gray-600 dark:text-gray-400 break-all" x-text="getSubconverterUrl()"></p>
-                </div>
-                <div class="mt-3 flex justify-end">
-                  <button
-                    type="button"
-                    x-on:click="copySubconverterUrl()"
-                    class="px-4 py-2 rounded-lg transition-colors font-medium text-sm flex items-center gap-2"
-                    x-bind:class="subconverterCopied ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'"
-                  >
-                    <i class="fas" x-bind:class="subconverterCopied ? 'fa-check' : 'fa-copy'"></i>
-                    <span x-text={`subconverterCopied ? '${t("copiedSubconverterUrl")}' : '${t("copySubconverterUrl")}'`}></span>
-                  </button>
-                </div>
-              </div>
-
-              <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
                 <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                   <i class="fas fa-user-secret text-gray-400"></i>
                   {t("UASettings")}
@@ -377,7 +317,6 @@ export const Form = (props) => {
                   placeholder="curl/7.74.0"
                 />
               </div>
-            </div>
 
             <div class="flex flex-col sm:flex-row gap-4">
               <button
@@ -391,11 +330,11 @@ export const Form = (props) => {
 
               <button
                 type="button"
-                x-on:click="clearAll()"
-                class="px-6 py-3.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 rounded-xl font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 flex items-center justify-center gap-2 shadow-sm"
+                  x-on:click="showHistorySidebar = true"
+                  class="px-6 py-3.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 rounded-xl font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 flex items-center justify-center gap-2 shadow-sm"
               >
-                <i class="fas fa-trash-alt"></i>
-                {t("clear")}
+                  <i class="fas fa-history"></i>
+                  {t("conversionHistory")}
               </button>
             </div>
           </form>
@@ -552,6 +491,28 @@ export const Form = (props) => {
               >
                 <i class="fas" x-bind:class="shortenedLinks ? 'fa-expand-alt' : (shortening ? 'fa-spinner fa-spin' : 'fa-compress-alt')"></i>
                 <span x-text="shortenedLinks ? showFullLinksText : (shortening ? shorteningText : shortenLinksText)"></span>
+              </button>
+            </div>
+          </div>
+
+          <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-2">
+              <i class="fas fa-file-export text-gray-400"></i>
+              {t("subconverterConfigTitle")}
+            </h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{t("subconverterConfigDesc")}</p>
+            <div class="px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+              <p class="font-mono text-sm text-gray-600 dark:text-gray-400 break-all" x-text="getSubconverterUrl()"></p>
+            </div>
+            <div class="mt-3 flex justify-end">
+              <button
+                type="button"
+                x-on:click="copySubconverterUrl()"
+                class="px-4 py-2 rounded-lg transition-colors font-medium text-sm flex items-center gap-2"
+                x-bind:class="subconverterCopied ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'"
+              >
+                <i class="fas" x-bind:class="subconverterCopied ? 'fa-check' : 'fa-copy'"></i>
+                <span x-text={`subconverterCopied ? '${t("copiedSubconverterUrl")}' : '${t("copySubconverterUrl")}'`}></span>
               </button>
             </div>
           </div>

@@ -1,5 +1,5 @@
 import { ProxyParser } from '../parsers/index.js';
-import { deepCopy, tryDecodeSubscriptionLines, decodeBase64 } from '../utils.js';
+import { deepCopy, tryDecodeSubscriptionLines, decodeBase64, aggregateSubscriptionInfo } from '../utils.js';
 import { createTranslator } from '../i18n/index.js';
 import { generateRules, getOutbounds, PREDEFINED_RULE_SETS } from '../config/index.js';
 
@@ -17,6 +17,7 @@ export class BaseConfigBuilder {
         this.includeAutoSelect = includeAutoSelect;
         this.useProviders = useProviders;
         this.providerUrls = [];  // URLs to use as providers (auto-sync)
+        this.subscriptionInfo = null;  // Aggregated subscription-userinfo from upstream sources
 
         // Deprecated: previously used to merge user-defined proxy-groups from input config.
         // We intentionally ignore input proxy-groups now to avoid duplicated/undesired groups.
@@ -33,6 +34,7 @@ export class BaseConfigBuilder {
     async parseCustomItems() {
         const input = this.inputString || '';
         const parsedItems = [];
+        const collectedSubInfo = [];
         let remoteFetchAttempted = false;
         let remoteFetchFailed = false;
         let lastRemoteFetchError = null;
@@ -101,7 +103,8 @@ export class BaseConfigBuilder {
                     try {
                         const fetchResult = await fetchSubscriptionWithFormat(trimmedUrl, this.userAgent);
                         if (fetchResult) {
-                            const { content, format, url: originalUrl } = fetchResult;
+                            const { content, format, url: originalUrl, subscriptionInfo } = fetchResult;
+                            if (subscriptionInfo) collectedSubInfo.push(subscriptionInfo);
 
                             // If format is compatible with target client, use as provider (auto-sync).
                             // Note: when grouping by country, we need actual proxy names to build country groups,
@@ -184,6 +187,8 @@ export class BaseConfigBuilder {
         if (parsedItems.length === 0 && remoteFetchAttempted && remoteFetchFailed) {
             throw lastRemoteFetchError || new Error('Failed to fetch remote subscription');
         }
+
+        this.subscriptionInfo = aggregateSubscriptionInfo(collectedSubInfo);
 
         return parsedItems;
     }

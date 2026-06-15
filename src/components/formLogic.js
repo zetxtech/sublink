@@ -320,8 +320,7 @@ export const formLogicFn = (t) => {
         const dd = pad(date.getDate());
         const hh = pad(date.getHours());
         const mi = pad(date.getMinutes());
-        const ss = pad(date.getSeconds());
-        return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
+        return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
       },
 
       buildGeneratedLinks(queryString) {
@@ -765,6 +764,7 @@ export const formLogicFn = (t) => {
 
           this.addHistoryEntry({
             queryString,
+            sourceCount: (this.input || '').split('\n').filter(l => l.trim()).length,
             state: {
               input: this.input,
               selectedPredefinedRule: this.selectedPredefinedRule,
@@ -895,7 +895,7 @@ export const formLogicFn = (t) => {
 
         // Debounce for 500ms
         this.parseDebounceTimer = setTimeout(() => {
-          this.tryParseSubscriptionUrl(val.trim());
+          this.tryParseSubscriptionUrl(val.trim(), { silent: true });
         }, 500);
       },
 
@@ -973,12 +973,6 @@ export const formLogicFn = (t) => {
           // Now parse the full URL and populate form
           await this.populateFormFromUrl(urlToParse);
 
-          if (!options.silent) {
-            const message =
-              window.APP_TRANSLATIONS?.urlParsedSuccess ||
-              "已成功解析订阅链接配置";
-            alert(message);
-          }
           return true;
         } catch (error) {
           console.error("Error parsing subscription URL:", error);

@@ -336,7 +336,6 @@ export const COUNTRY_DATA = {
 	'KR': { name: 'Korea', nameZh: '韩国', emoji: '🇰🇷', aliases: ['韩国', 'Korea', 'KR'] },
 	'SG': { name: 'Singapore', nameZh: '新加坡', emoji: '🇸🇬', aliases: ['新加坡', 'Singapore', 'SG'] },
 	'US': { name: 'United States', nameZh: '美国', emoji: '🇺🇸', aliases: ['美国', 'United States', 'US'] },
-	'GB': { name: 'United Kingdom', nameZh: '英国', emoji: '🇬🇧', aliases: ['英国', 'United Kingdom', 'UK', 'GB'] },
 	'DE': { name: 'Germany', nameZh: '德国', emoji: '🇩🇪', aliases: ['德国', 'Germany'] },
 	'FR': { name: 'France', nameZh: '法国', emoji: '🇫🇷', aliases: ['法国', 'France'] },
 	'RU': { name: 'Russia', nameZh: '俄罗斯', emoji: '🇷🇺', aliases: ['俄罗斯', 'Russia'] },
@@ -360,6 +359,7 @@ export const COUNTRY_DATA = {
 	'ID': { name: 'Indonesia', nameZh: '印度尼西亚', emoji: '🇮🇩', aliases: ['印度尼西亚', 'Indonesia'] },
 	'NZ': { name: 'New Zealand', nameZh: '新西兰', emoji: '🇳🇿', aliases: ['新西兰', 'New Zealand'] },
 	'AE': { name: 'United Arab Emirates', nameZh: '阿联酋', emoji: '🇦🇪', aliases: ['阿联酋', 'United Arab Emirates'] },
+	'GB': { name: 'United Kingdom', nameZh: '英国', emoji: '🇬🇧', aliases: ['英国', 'United Kingdom', 'UK', 'GB'] },
 };
 
 export function parseCountryFromNodeName(nodeName) {
@@ -404,4 +404,61 @@ export function getCountryDisplayName(countryInfo, lang = 'zh-CN') {
 		return countryInfo.nameZh;
 	}
 	return countryInfo.name || '';
+}
+
+// Build a lookup of COUNTRY_DATA insertion order for stable sorting.
+const _countryOrderIndex = (() => {
+	const idx = {};
+	Object.keys(COUNTRY_DATA).forEach((code, i) => { idx[code] = i; });
+	return idx;
+})();
+
+/**
+ * Sort country-group keys (English country names from COUNTRY_DATA.name) in
+ * a stable order that matches COUNTRY_DATA insertion order, but always places
+ * "United Kingdom" (GB) at the very end.
+ * @param {string[]} names - Array of country name strings
+ * @returns {string[]} Sorted copy
+ */
+export function sortCountryNames(names) {
+	const gbName = COUNTRY_DATA['GB']?.name;
+	const nameToCode = {};
+	for (const [code, data] of Object.entries(COUNTRY_DATA)) {
+		nameToCode[data.name] = code;
+	}
+	return [...names].sort((a, b) => {
+		const aCode = nameToCode[a];
+		const bCode = nameToCode[b];
+		const aIsGb = (a === gbName || aCode === 'GB');
+		const bIsGb = (b === gbName || bCode === 'GB');
+		if (aIsGb && !bIsGb) return 1;
+		if (!aIsGb && bIsGb) return -1;
+		const aIdx = aCode ? (_countryOrderIndex[aCode] ?? Infinity) : Infinity;
+		const bIdx = bCode ? (_countryOrderIndex[bCode] ?? Infinity) : Infinity;
+		return aIdx - bIdx;
+	});
+}
+
+/**
+ * Aggregate subscription-userinfo from multiple sources.
+ * Sums upload/download/total and keeps the latest expire timestamp.
+ * @param {Array<object|null>} infos - Array of subscription info objects
+ * @returns {{ upload: number, download: number, total: number, expire: number }|null}
+ */
+export function aggregateSubscriptionInfo(infos) {
+	if (!Array.isArray(infos) || infos.length === 0) return null;
+
+	let upload = 0, download = 0, total = 0, expire = 0;
+	let hasAny = false;
+	for (const info of infos) {
+		if (!info || typeof info !== 'object') continue;
+		hasAny = true;
+		if (typeof info.upload === 'number') upload += info.upload;
+		if (typeof info.download === 'number') download += info.download;
+		if (typeof info.total === 'number') total += info.total;
+		if (typeof info.expire === 'number' && info.expire > expire) expire = info.expire;
+	}
+
+	if (!hasAny) return null;
+	return { upload, download, total, expire };
 }

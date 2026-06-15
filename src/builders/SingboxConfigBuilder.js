@@ -1,7 +1,7 @@
 
 import { SING_BOX_CONFIG, generateRuleSets, generateRules, getOutbounds, PREDEFINED_RULE_SETS, DIRECT_DEFAULT_RULES } from '../config/index.js';
 import { BaseConfigBuilder } from './BaseConfigBuilder.js';
-import { deepCopy, groupProxiesByCountry, getCountryDisplayName } from '../utils.js';
+import { deepCopy, groupProxiesByCountry, getCountryDisplayName, sortCountryNames } from '../utils.js';
 import { addProxyWithDedup } from './helpers/proxyHelpers.js';
 import { buildSelectorMembers as buildSelectorMemberList, buildNodeSelectMembers, uniqueNames } from './helpers/groupBuilder.js';
 import { normalizeGroupName } from './helpers/groupNameUtils.js';
@@ -265,7 +265,7 @@ export class SingboxConfigBuilder extends BaseConfigBuilder {
             }
         }
 
-        const countries = Object.keys(countryGroups).sort((a, b) => a.localeCompare(b));
+            const countries = sortCountryNames(Object.keys(countryGroups));
         const countryGroupNames = [];
 
         countries.forEach(country => {

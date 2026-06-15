@@ -181,10 +181,39 @@ export async function fetchSubscriptionWithFormat(url, userAgent) {
         }
         const content = decodeContent(text);
         const format = detectFormat(content);
+        const subscriptionInfo = parseSubscriptionInfo(response.headers);
 
-        return { content, format, url };
+        return { content, format, url, subscriptionInfo };
     } catch (error) {
         console.error('Error fetching subscription:', error);
         throw error;
     }
+}
+
+/**
+ * Parse subscription-userinfo header for usage and expiry data
+ * Format: upload=<bytes>; download=<bytes>; total=<bytes>; expire=<unix_timestamp>
+ * @param {Headers} headers - Response headers
+ * @returns {object|null} - Parsed subscription info or null
+ */
+function parseSubscriptionInfo(headers) {
+    const raw = headers.get('subscription-userinfo');
+    if (!raw) return null;
+
+    const info = {};
+    const parts = raw.split(';').map(s => s.trim());
+    for (const part of parts) {
+        const eqIndex = part.indexOf('=');
+        if (eqIndex === -1) continue;
+        const key = part.slice(0, eqIndex).trim();
+        const value = part.slice(eqIndex + 1).trim();
+        if (['upload', 'download', 'total', 'expire'].includes(key)) {
+            const num = Number(value);
+            if (!Number.isNaN(num)) {
+                info[key] = num;
+            }
+        }
+    }
+
+    return Object.keys(info).length > 0 ? info : null;
 }

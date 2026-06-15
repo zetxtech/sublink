@@ -6,7 +6,6 @@ import { Layout } from '../components/Layout.jsx';
 import { Navbar } from '../components/Navbar.jsx';
 import { Form } from '../components/Form.jsx';
 import { Footer } from '../components/Footer.jsx';
-import { UpdateChecker } from '../components/UpdateChecker.jsx';
 import { SingboxConfigBuilder } from '../builders/SingboxConfigBuilder.js';
 import { ClashConfigBuilder } from '../builders/ClashConfigBuilder.js';
 import { SurgeConfigBuilder } from '../builders/SurgeConfigBuilder.js';
@@ -76,7 +75,6 @@ export function createApp(bindings = {}) {
                         </div>
                     </main>
                     <Footer />
-                    <UpdateChecker />
                 </div>
             </Layout>
         );
@@ -130,7 +128,11 @@ export function createApp(bindings = {}) {
                 useProviders
             );
             await builder.build();
-            return c.json(builder.config);
+            const result = c.json(builder.config);
+            if (builder.subscriptionInfo) {
+                result.headers.set('subscription-userinfo', formatSubscriptionInfo(builder.subscriptionInfo));
+            }
+            return result;
         } catch (error) {
             return handleError(c, error, runtime.logger);
         }
@@ -176,9 +178,11 @@ export function createApp(bindings = {}) {
                 useProviders
             );
             await builder.build();
-            return c.text(builder.formatConfig(), 200, {
-                'Content-Type': 'text/yaml; charset=utf-8'
-            });
+            const clashHeaders = { 'Content-Type': 'text/yaml; charset=utf-8' };
+            if (builder.subscriptionInfo) {
+                clashHeaders['subscription-userinfo'] = formatSubscriptionInfo(builder.subscriptionInfo);
+            }
+            return c.text(builder.formatConfig(), 200, clashHeaders);
         } catch (error) {
             return handleError(c, error, runtime.logger);
         }
@@ -217,9 +221,11 @@ export function createApp(bindings = {}) {
             );
             builder.setSubscriptionUrl(c.req.url);
             await builder.build();
-
-            c.header('subscription-userinfo', 'upload=0; download=0; total=10737418240; expire=2546249531');
-            return c.text(builder.formatConfig());
+            const surgeHeaders = {};
+            if (builder.subscriptionInfo) {
+                surgeHeaders['subscription-userinfo'] = formatSubscriptionInfo(builder.subscriptionInfo);
+            }
+            return c.text(builder.formatConfig(), 200, surgeHeaders);
         } catch (error) {
             return handleError(c, error, runtime.logger);
         }
@@ -536,6 +542,16 @@ function parseJsonArray(raw) {
 
 function parseBooleanFlag(value) {
     return value === 'true' || value === true;
+}
+
+function formatSubscriptionInfo(info) {
+    if (!info || typeof info !== 'object') return '';
+    const parts = [];
+    if (typeof info.upload === 'number') parts.push(`upload=${info.upload}`);
+    if (typeof info.download === 'number') parts.push(`download=${info.download}`);
+    if (typeof info.total === 'number') parts.push(`total=${info.total}`);
+    if (typeof info.expire === 'number') parts.push(`expire=${info.expire}`);
+    return parts.join('; ');
 }
 
 function normalizeClientType(value) {
