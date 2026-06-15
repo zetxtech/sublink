@@ -338,6 +338,7 @@ export const COUNTRY_DATA = {
 	'US': { name: 'United States', nameZh: '美国', emoji: '🇺🇸', aliases: ['美国', 'United States', 'US'] },
 	'DE': { name: 'Germany', nameZh: '德国', emoji: '🇩🇪', aliases: ['德国', 'Germany'] },
 	'FR': { name: 'France', nameZh: '法国', emoji: '🇫🇷', aliases: ['法国', 'France'] },
+	'GB': { name: 'United Kingdom', nameZh: '英国', emoji: '🇬🇧', aliases: ['英国', 'United Kingdom', 'UK', 'GB'] },
 	'RU': { name: 'Russia', nameZh: '俄罗斯', emoji: '🇷🇺', aliases: ['俄罗斯', 'Russia'] },
 	'CA': { name: 'Canada', nameZh: '加拿大', emoji: '🇨🇦', aliases: ['加拿大', 'Canada'] },
 	'AU': { name: 'Australia', nameZh: '澳大利亚', emoji: '🇦🇺', aliases: ['澳大利亚', 'Australia'] },
@@ -359,7 +360,6 @@ export const COUNTRY_DATA = {
 	'ID': { name: 'Indonesia', nameZh: '印度尼西亚', emoji: '🇮🇩', aliases: ['印度尼西亚', 'Indonesia'] },
 	'NZ': { name: 'New Zealand', nameZh: '新西兰', emoji: '🇳🇿', aliases: ['新西兰', 'New Zealand'] },
 	'AE': { name: 'United Arab Emirates', nameZh: '阿联酋', emoji: '🇦🇪', aliases: ['阿联酋', 'United Arab Emirates'] },
-	'GB': { name: 'United Kingdom', nameZh: '英国', emoji: '🇬🇧', aliases: ['英国', 'United Kingdom', 'UK', 'GB'] },
 };
 
 export function parseCountryFromNodeName(nodeName) {
@@ -415,13 +415,11 @@ const _countryOrderIndex = (() => {
 
 /**
  * Sort country-group keys (English country names from COUNTRY_DATA.name) in
- * a stable order that matches COUNTRY_DATA insertion order, but always places
- * "United Kingdom" (GB) at the very end.
+ * a stable order that matches COUNTRY_DATA insertion order.
  * @param {string[]} names - Array of country name strings
  * @returns {string[]} Sorted copy
  */
 export function sortCountryNames(names) {
-	const gbName = COUNTRY_DATA['GB']?.name;
 	const nameToCode = {};
 	for (const [code, data] of Object.entries(COUNTRY_DATA)) {
 		nameToCode[data.name] = code;
@@ -429,10 +427,6 @@ export function sortCountryNames(names) {
 	return [...names].sort((a, b) => {
 		const aCode = nameToCode[a];
 		const bCode = nameToCode[b];
-		const aIsGb = (a === gbName || aCode === 'GB');
-		const bIsGb = (b === gbName || bCode === 'GB');
-		if (aIsGb && !bIsGb) return 1;
-		if (!aIsGb && bIsGb) return -1;
 		const aIdx = aCode ? (_countryOrderIndex[aCode] ?? Infinity) : Infinity;
 		const bIdx = bCode ? (_countryOrderIndex[bCode] ?? Infinity) : Infinity;
 		return aIdx - bIdx;
