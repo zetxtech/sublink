@@ -247,13 +247,6 @@ export const CustomRules = (props) => {
             
             init() {
               try {
-                const savedMode = localStorage.getItem(this.modeStorageKey);
-                if (savedMode === 'form' || savedMode === 'json') {
-                  this.mode = savedMode;
-                }
-              } catch {}
-
-              try {
                 const raw = localStorage.getItem(this.storageKey);
                 if (raw) {
                   const parsed = JSON.parse(raw);
@@ -281,11 +274,6 @@ export const CustomRules = (props) => {
                 } catch {}
               });
 
-              this.$watch('mode', (value) => {
-                try {
-                  localStorage.setItem(this.modeStorageKey, value);
-                } catch {}
-              });
 
               // Watch for changes in JSON content to update rules
               this.$watch('jsonContent', (value) => {
@@ -315,7 +303,6 @@ export const CustomRules = (props) => {
 
                   try {
                     localStorage.setItem(this.storageKey, JSON.stringify(event.detail.rules || []));
-                    localStorage.setItem(this.modeStorageKey, 'json');
                   } catch {}
                 }
               });
