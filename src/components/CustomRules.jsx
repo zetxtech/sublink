@@ -183,7 +183,7 @@ export const CustomRules = (props) => {
         </div>
 
         <div class="mt-6 flex flex-wrap gap-3">
-          <button type="button" x-on:click="addRule()" class="px-4 py-2 bg-sky-50 dark:bg-sky-900/20 text-sky-600 dark:text-sky-400 rounded-lg hover:bg-sky-100 dark:hover:bg-sky-900/40 transition-colors duration-200 font-medium flex items-center gap-2">
+          <button type="button" x-on:click="addRule()" x-show="rules.length > 0" class="px-4 py-2 bg-sky-50 dark:bg-sky-900/20 text-sky-600 dark:text-sky-400 rounded-lg hover:bg-sky-100 dark:hover:bg-sky-900/40 transition-colors duration-200 font-medium flex items-center gap-2">
             <i class="fas fa-plus"></i>
             {t('addCustomRule')}
           </button>
@@ -200,6 +200,8 @@ export const CustomRules = (props) => {
           id="customRulesJson"
           name="customRulesJson"
           model="jsonContent"
+          paste={false}
+          clear={false}
           placeholder='[{"name": "MyRule", "domain_suffix": ["example.com"], "outbound": "Proxy"}]'
           variant="mono"
           textareaClass="min-h-[16rem]"
