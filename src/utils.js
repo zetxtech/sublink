@@ -439,13 +439,19 @@ export function sortCountryNames(names) {
  * @param {Array<object|null>} infos - Array of subscription info objects
  * @returns {{ upload: number, download: number, total: number, expire: number }|null}
  */
+const FIVE_TB = 5 * 1024 * 1024 * 1024 * 1024;
+const FIVE_YEARS_SEC = 5 * 365.25 * 24 * 60 * 60;
+
 export function aggregateSubscriptionInfo(infos) {
 	if (!Array.isArray(infos) || infos.length === 0) return null;
 
 	let upload = 0, download = 0, total = 0, expire = 0;
 	let hasAny = false;
+	const nowSec = Date.now() / 1000;
 	for (const info of infos) {
 		if (!info || typeof info !== 'object') continue;
+		if (typeof info.total === 'number' && info.total > FIVE_TB) continue;
+		if (typeof info.expire === 'number' && info.expire > 0 && Math.abs(info.expire - nowSec) > FIVE_YEARS_SEC) continue;
 		hasAny = true;
 		if (typeof info.upload === 'number') upload += info.upload;
 		if (typeof info.download === 'number') download += info.download;
